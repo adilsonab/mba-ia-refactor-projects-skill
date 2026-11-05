@@ -1,0 +1,19 @@
+$ node --trace-deprecation src/app.js   (equivale a npm start)
+Smoke test: http://localhost:3000
+  OK   POST /api/checkout -> 200
+  OK   POST /api/checkout -> 200
+  OK   POST /api/checkout -> 400
+  OK   POST /api/checkout -> 400
+  OK   POST /api/checkout -> 404
+  OK   GET /api/admin/financial-report -> 200
+  OK   DELETE /api/users/1 -> 200
+  relatório: [{"course":"Clean Architecture","revenue":997,"students":[{"student":"Unknown","paid":997}]},{"course":"Docker","revenue":994,"students":[{"student":"Guilherme","paid":497},{"student":"Unknown","paid":497}]}]
+  OK   receitas do relatório conferem
+Resultado: 8 OK, 0 FAIL
+
+----- log do servidor (stdout/stderr) -----
+[WARN] PAYMENT_GATEWAY_KEY não definida; gateway de pagamento roda em modo simulado (apenas desenvolvimento).
+[INFO] Frankenstein LMS rodando na porta 3000...
+[INFO] Processando pagamento de 497 com cartão final 4444 (gateway simulado)
+[INFO] Processando pagamento de 497 com cartão final 4444 (gateway simulado)
+[INFO] Processando pagamento de 997 com cartão final 4444 (gateway simulado)

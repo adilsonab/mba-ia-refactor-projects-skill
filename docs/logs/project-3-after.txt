@@ -1,0 +1,90 @@
+$ python seed.py && python -W default app.py   (log do servidor ao final)
+2026-11-05 14:22:42,843 WARNING app: SECRET_KEY não definida; usando chave aleatória (apenas desenvolvimento).
+Seed concluído com sucesso!
+  3 usuários
+  4 categorias
+  10 tasks
+Smoke test: http://localhost:5000
+  OK   GET / -> 200
+  OK   GET /health -> 200
+  OK   GET /tasks -> 200
+  OK   GET /tasks/1 -> 200
+  OK   GET /tasks/9999 -> 404
+  OK   POST /tasks -> 201
+  OK   POST /tasks -> 400
+  OK   POST /tasks -> 400
+  OK   PUT /tasks/1 -> 200
+  OK   PUT /tasks/1 -> 400
+  OK   GET /tasks/search?q=login -> 200
+  OK   GET /tasks/search?status=pending&priority=1 -> 200
+  OK   GET /tasks/stats -> 200
+  OK   DELETE /tasks/11 -> 200
+  OK   GET /users -> 200
+  OK   GET /users/1 -> 200
+  OK   GET /users/9999 -> 404
+  OK   POST /users -> 201
+  OK   POST /users -> 409
+  OK   POST /users -> 400
+  OK   PUT /users/2 -> 200
+  OK   GET /users/1/tasks -> 200
+  OK   POST /login -> 200
+  OK   POST /login -> 401
+  OK   DELETE /users/4 -> 200
+  OK   GET /reports/summary -> 200
+  OK   GET /reports/user/1 -> 200
+  OK   GET /reports/user/9999 -> 404
+  OK   GET /categories -> 200
+  OK   POST /categories -> 201
+  OK   PUT /categories/5 -> 200
+  OK   DELETE /categories/5 -> 200
+Resultado: 32 OK, 0 FAIL
+
+----- log do servidor (stdout/stderr) -----
+2026-11-05 14:22:45,043 WARNING app: SECRET_KEY não definida; usando chave aleatória (apenas desenvolvimento).
+ * Serving Flask app 'app'
+ * Debug mode: off
+2026-11-05 14:22:45,133 INFO werkzeug: WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://<ip-da-rede-local>:5000
+2026-11-05 14:22:45,133 INFO werkzeug: Press CTRL+C to quit
+2026-11-05 14:22:45,135 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:45] "GET /health HTTP/1.1" 200 -
+2026-11-05 14:22:46,063 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:46] "GET / HTTP/1.1" 200 -
+2026-11-05 14:22:46,528 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:46] "GET /health HTTP/1.1" 200 -
+2026-11-05 14:22:47,042 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:47] "GET /tasks HTTP/1.1" 200 -
+2026-11-05 14:22:47,536 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:47] "GET /tasks/1 HTTP/1.1" 200 -
+2026-11-05 14:22:48,062 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:48] "GET /tasks/9999 HTTP/1.1" 404 -
+2026-11-05 14:22:48,530 INFO services.task_service: Task criada: 11
+2026-11-05 14:22:48,530 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:48] "POST /tasks HTTP/1.1" 201 -
+2026-11-05 14:22:49,043 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:49] "POST /tasks HTTP/1.1" 400 -
+2026-11-05 14:22:49,569 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:49] "POST /tasks HTTP/1.1" 400 -
+2026-11-05 14:22:50,032 INFO services.task_service: Task atualizada: 1
+2026-11-05 14:22:50,033 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:50] "PUT /tasks/1 HTTP/1.1" 200 -
+2026-11-05 14:22:50,532 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:50] "PUT /tasks/1 HTTP/1.1" 400 -
+2026-11-05 14:22:51,023 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:51] "GET /tasks/search?q=login HTTP/1.1" 200 -
+2026-11-05 14:22:51,494 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:51] "GET /tasks/search?status=pending&priority=1 HTTP/1.1" 200 -
+2026-11-05 14:22:52,010 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:52] "GET /tasks/stats HTTP/1.1" 200 -
+2026-11-05 14:22:52,504 INFO services.task_service: Task deletada: 11
+2026-11-05 14:22:52,504 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:52] "DELETE /tasks/11 HTTP/1.1" 200 -
+2026-11-05 14:22:52,975 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:52] "GET /users HTTP/1.1" 200 -
+2026-11-05 14:22:53,503 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:53] "GET /users/1 HTTP/1.1" 200 -
+2026-11-05 14:22:53,997 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:53] "GET /users/9999 HTTP/1.1" 404 -
+2026-11-05 14:22:54,562 INFO services.user_service: Usuário criado: 4
+2026-11-05 14:22:54,563 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:54] "POST /users HTTP/1.1" 201 -
+2026-11-05 14:22:55,036 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:55] "POST /users HTTP/1.1" 409 -
+2026-11-05 14:22:55,496 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:55] "POST /users HTTP/1.1" 400 -
+2026-11-05 14:22:55,997 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:55] "PUT /users/2 HTTP/1.1" 200 -
+2026-11-05 14:22:56,552 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:56] "GET /users/1/tasks HTTP/1.1" 200 -
+2026-11-05 14:22:57,087 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:57] "POST /login HTTP/1.1" 200 -
+2026-11-05 14:22:57,677 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:57] "POST /login HTTP/1.1" 401 -
+2026-11-05 14:22:58,266 INFO services.user_service: Usuário deletado: 4
+2026-11-05 14:22:58,266 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:58] "DELETE /users/4 HTTP/1.1" 200 -
+2026-11-05 14:22:58,691 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:58] "GET /reports/summary HTTP/1.1" 200 -
+2026-11-05 14:22:59,175 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:59] "GET /reports/user/1 HTTP/1.1" 200 -
+2026-11-05 14:22:59,662 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:22:59] "GET /reports/user/9999 HTTP/1.1" 404 -
+2026-11-05 14:23:00,118 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:23:00] "GET /categories HTTP/1.1" 200 -
+2026-11-05 14:23:00,655 INFO services.category_service: Categoria criada: 5
+2026-11-05 14:23:00,656 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:23:00] "POST /categories HTTP/1.1" 201 -
+2026-11-05 14:23:01,209 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:23:01] "PUT /categories/5 HTTP/1.1" 200 -
+2026-11-05 14:23:01,658 INFO services.category_service: Categoria deletada: 5
+2026-11-05 14:23:01,658 INFO werkzeug: 127.0.0.1 - - [05/Nov/2026 14:23:01] "DELETE /categories/5 HTTP/1.1" 200 -
