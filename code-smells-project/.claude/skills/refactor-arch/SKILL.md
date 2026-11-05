@@ -33,6 +33,8 @@ Os caminhos são relativos ao diretório desta skill (`.claude/skills/refactor-a
 4. **Preserve o contrato externo** na Fase 3 (rotas, métodos, nomes de campos de entrada, formato das respostas, status HTTP e o comando de inicialização documentado). Ver `mvc-guidelines.md`.
 5. **Adapte-se ao contexto:** um monolito é decomposto; um projeto já parcialmente organizado é melhorado incrementalmente (reaproveite pastas e código existentes).
 6. Toda saída para o usuário segue os blocos de formato definidos abaixo e no template.
+7. **Não execute comandos git que alterem o repositório** (`git checkout -b`, `git switch`, `git add`, `git commit`, `git stash`...). Versionamento é decisão do usuário; ao final apenas informe os arquivos alterados.
+8. Escreva descrições do relatório e do resumo no **idioma do projeto/usuário** (ex.: português se o código e o README estiverem em português); mantenha em inglês apenas os rótulos fixos do template (`File:`, `Impact:`...).
 
 ---
 
@@ -70,7 +72,10 @@ Prossiga automaticamente para a Fase 2 (a Fase 1 não modifica nada).
 
 1. Leia `references/anti-patterns-catalog.md` e `references/audit-report-template.md`.
 2. Percorra **cada arquivo-fonte** e **cada entrada do catálogo**, procurando os sinais de detecção descritos. Use busca textual (Grep) para os sinais "grep-áveis" e leitura para os estruturais.
-3. **Verificação de APIs deprecated** (obrigatória): consulte a tabela de APIs deprecated do catálogo para a stack detectada. Quando for seguro e rápido, confirme em tempo de execução (ex.: `python -W default -c "import <modulo_principal>"`, `node --trace-deprecation`, `npm audit --omit=dev`, `pip list --outdated`) sem modificar o projeto.
+3. **Verificação de APIs deprecated** (obrigatória): consulte a tabela de APIs deprecated do catálogo para a stack detectada (busca estática com Grep) **e** confirme em tempo de execução sem modificar o projeto:
+   - Python: se as dependências não estiverem instaladas, crie um venv **temporário fora do projeto** (ex.: no diretório temporário do sistema) e instale o `requirements.txt` nele; então suba a aplicação com `python -W default` (incluindo passos prévios como seed, se necessário, apontando o banco para um caminho temporário quando a config permitir) ou importe o módulo principal, e colete `DeprecationWarning`/`LegacyAPIWarning` com arquivo:linha.
+   - Node: `npm audit --omit=dev` e `node --trace-deprecation <entry>` (se `node_modules` não existir, rode `npm ci`/`npm install` — `node_modules/` é ignorado pelo git e não conta como modificação do código).
+   - Derrube qualquer processo iniciado. Se a verificação em runtime for impossível, diga explicitamente o motivo no relatório.
 4. Para cada achado registre: ID e nome do anti-pattern, severidade, `arquivo:linha` ou `arquivo:inicio-fim` **exatos**, descrição concreta (cite o trecho), impacto e recomendação (referenciando a transformação do playbook).
    - Agrupe ocorrências do mesmo anti-pattern em um único finding listando todas as localizações.
    - Use a severidade padrão do catálogo; só ajuste seguindo as regras de calibração do catálogo e justifique.
