@@ -1,34 +1,37 @@
+"""Composition root: cria o app, carrega config, inicializa banco, dependências, rotas e error handlers."""
+import logging
+
 from flask import Flask
 from flask_cors import CORS
-from database import db
-from routes.task_routes import task_bp
-from routes.user_routes import user_bp
-from routes.report_routes import report_bp
-import os, sys, json, datetime
 
-app = Flask(__name__)
+from config import Config
+from database import db, init_db  # noqa: F401  (`db` reexportado para `from app import app, db` no seed.py)
+from middlewares.error_handler import register_error_handlers
+from routes import register_routes
+from services.notification_service import build_notification_service
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'super-secret-key-123'
 
-CORS(app)
-db.init_app(app)
+def configure_logging(level):
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-app.register_blueprint(task_bp)
-app.register_blueprint(user_bp)
-app.register_blueprint(report_bp)
 
-@app.route('/health')
-def health():
-    return {'status': 'ok', 'timestamp': str(datetime.datetime.now())}
+def create_app(config_class=Config):
+    app = Flask(__name__)
+    app.config.from_object(config_class)
+    configure_logging(app.config["LOG_LEVEL"])
+    if not app.config["SECRET_KEY_FROM_ENV"]:
+        app.logger.warning("SECRET_KEY não definida; usando chave aleatória (apenas desenvolvimento).")
 
-@app.route('/')
-def index():
-    return {'message': 'Task Manager API', 'version': '1.0'}
+    CORS(app, origins=app.config["CORS_ORIGINS"])
+    init_db(app)
+    app.extensions["notification_service"] = build_notification_service(app.config)
 
-with app.app_context():
-    db.create_all()
+    register_routes(app)
+    register_error_handlers(app)
+    return app
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+app = create_app()
+
+if __name__ == "__main__":
+    app.run(host=app.config["HOST"], port=app.config["PORT"], debug=app.config["DEBUG"])
