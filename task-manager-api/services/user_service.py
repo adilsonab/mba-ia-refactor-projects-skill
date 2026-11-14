@@ -1,7 +1,6 @@
 """Casos de uso de usuários e autenticação."""
 import logging
 
-from config.constants import LEGACY_TOKEN_PREFIX
 from middlewares.error_handler import ConflictError, ForbiddenError, NotFoundError, UnauthorizedError
 from models.task import Task
 from models.user import User
@@ -70,8 +69,3 @@ def authenticate(email, password):
     if not user.active:
         raise ForbiddenError("Usuário inativo")
     return user
-
-
-def issue_token(user):
-    # Token legado mantido por compatibilidade de contrato (não é verificado). Ver pendências.
-    return LEGACY_TOKEN_PREFIX + str(user.id)

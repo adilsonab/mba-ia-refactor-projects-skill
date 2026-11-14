@@ -543,18 +543,18 @@ As tabelas abaixo resumem cada problema. Os arquivos e linhas exatos de cada ite
 
 ```
 .claude/skills/refactor-arch/
-├── SKILL.md                              # 146 linhas: o "prompt" com as 3 fases, regras invioláveis e formatos de saída
+├── SKILL.md                              # 152 linhas: o "prompt" com as 3 fases, regras invioláveis e formatos de saída
 └── references/
     ├── project-analysis.md               # Fase 1: heurísticas de linguagem, framework, banco, domínio e arquitetura
     ├── anti-patterns-catalog.md          # Fase 2: 26 anti-patterns com sinais de detecção, falsos positivos e severidade
     ├── audit-report-template.md          # Fase 2: formato obrigatório do relatório
     ├── mvc-guidelines.md                 # Fase 3: camadas, regra de dependência, estruturas-alvo, contrato, protocolo de validação
-    └── refactoring-playbook.md           # Fase 3: 17 transformações (T01–T17) com antes/depois em Python e JavaScript
+    └── refactoring-playbook.md           # Fase 3: 17 transformações (T01–T17) com antes/depois em Python e JavaScript (T16: autenticação real)
 ```
 
 ### Decisões de design
 
-1. **O `SKILL.md` diz o que fazer; as referências trazem o conhecimento.** O `SKILL.md` descreve o processo e as regras. Cada arquivo de referência só é lido na fase em que é necessário (tabela "quando ler"). Assim o contexto fica enxuto: o playbook de 570 linhas não é carregado durante a análise.
+1. **O `SKILL.md` diz o que fazer; as referências trazem o conhecimento.** O `SKILL.md` descreve o processo e as regras. Cada arquivo de referência só é lido na fase em que é necessário (tabela "quando ler"). Assim o contexto fica enxuto: o playbook de 711 linhas não é carregado durante a análise.
 2. **Regras invioláveis no topo do `SKILL.md`:**
    - Nada é alterado antes do "y".
    - Nenhum finding sem arquivo e linha que o agente tenha lido.
@@ -567,8 +567,9 @@ As tabelas abaixo resumem cada problema. Os arquivos e linhas exatos de cada ite
 4. **Relatório salvo pela própria skill.** O argumento opcional `$ARGUMENTS` (`/refactor-arch ../reports/audit-project-N.md`) indica onde gravar o relatório da Fase 2. É a única escrita permitida antes da confirmação.
 5. **Validação objetiva, não "parece que funciona".** A Fase 3 captura um *baseline* (status HTTP e JSON de cada endpoint) **antes** de mexer no código. Depois da refatoração, repete as mesmas requisições e compara status e chaves do JSON. Também sobe a app com `python -W default` ou `node --trace-deprecation` para pegar avisos de deprecated e audita de novo os sinais CRITICAL/HIGH. A regra final é "nunca marque ✓ em algo que você não executou e observou".
 6. **Contrato da API versus segurança.** O `mvc-guidelines.md` separa:
-   - Mudanças **permitidas**, que precisam ser listadas: remover `password` das respostas, trocar 500 por 400 em input inválido, remover `/admin/query`.
-   - Mudanças que **exigem decisão humana**: exigir autenticação em rota hoje pública, alterar regra de negócio, trocar banco ou major version do framework. Elas aparecem em "Pending (requires human decision)" e não são aplicadas automaticamente.
+   - Mudanças de segurança **permitidas e obrigatórias**, listadas na seção "Security Contract Changes" do resumo: remover `password` das respostas, trocar 500 por 400 em input inválido, remover `/admin/query` e **corrigir o AP-11** (token assinado com expiração, rotas protegidas por papel, papel definido pelo servidor).
+   - Mudanças que **exigem decisão humana**: alterar regra de negócio, trocar banco ou major version do framework, trocar a autenticação por um provedor externo (OAuth/SSO). Elas aparecem em "Pending (requires human decision)". O AP-11 em si **nunca** vai para essa seção.
+7. **Matriz de acesso explícita.** Para corrigir o AP-11 de forma igual em qualquer stack, o `mvc-guidelines.md` classifica cada endpoint do inventário em **público** (health, login, cadastro, catálogo, checkout), **autenticado — dono ou admin** (dados do próprio usuário, pedidos em nome próprio) e **admin** (listar/excluir usuários, alterar papel, relatórios, escrita no catálogo, `/admin/*`). O T16 traz o código concreto em Python (`itsdangerous` + decorators `login_required`/`admin_required`) e em Node (HMAC com `crypto` + middleware), inclusive o caso de projeto sem login (credencial de admin definida no servidor via `ADMIN_TOKEN`).
 
 ### Catálogo de anti-patterns (26 itens)
 
@@ -603,6 +604,14 @@ O AP-18 traz uma tabela de APIs deprecated por stack (Python, SQLAlchemy, Flask/
 | O servidor Flask não morria com um único `kill` (o reloader do modo debug cria um processo filho) | Validação | O protocolo de validação passou a incluir o comando para Windows e Linux que derruba todos os processos |
 | Como refatorar o Projeto 3 sem "reescrever do zero" | Projeto 3 | Estratégia **incremental** no `mvc-guidelines.md`: manter `models/` e `routes/`, adicionar `config/`, `controllers/` e `middlewares/`, **reaproveitar** `is_overdue()` e helpers e eliminar as cópias |
 
+#### Iteração v1.1 → v1.2 (após a revisão do professor)
+
+| Problema observado | Onde | Correção |
+|---|---|---|
+| A skill classificava o AP-11 como HIGH na Fase 2, mas mandava a correção para "Pending" na Fase 3. Resultado: no Projeto 3 o login continuava devolvendo `fake-jwt-token-<id>` e o cadastro aceitava `role` do cliente (qualquer pessoa virava admin) | Projetos 1, 2 e 3 | **Catálogo (AP-11):** a nota agora manda **corrigir na Fase 3, nunca adiar**, e ganhou sinais novos (login sem credencial, token previsível, `user_id` do corpo usado como identidade). **`mvc-guidelines.md` §4:** a correção do AP-11 virou mudança de segurança permitida e obrigatória, com a matriz de acesso público / dono ou admin / admin e as checagens 401/403 no protocolo de validação. **T16:** padrão concreto de token assinado com expiração, middleware que relê o papel do banco, papel definido pelo servidor no cadastro/update e o caso `ADMIN_TOKEN` para projetos sem login. **`SKILL.md`:** passo 8 da Fase 3 dedicado ao AP-11, nova seção "Security Contract Changes" no resumo e item "Authentication enforced" na validação |
+
+Depois da correção, a Fase 3 foi executada de novo nos 3 projetos (incremental sobre o código já refatorado, que só divergia da nova skill no AP-11), com os relatórios atualizados no finding AP-11 e os smoke tests ampliados com as checagens de autorização.
+
 Também vi a validação da própria skill funcionando: no Projeto 3, ela percebeu ao testar que parte do finding #15 estava errada (o ORM já limpava `category_id` ao apagar uma categoria) e **corrigiu o relatório** em vez de manter um achado falso.
 
 ## C) Resultados
@@ -624,7 +633,8 @@ Em todos os projetos a skill encontrou **mais findings que a análise manual**. 
 | Fase 1 detecta a stack corretamente | ✅ Python/Flask 3.1, sqlite3 | ✅ Node.js/Express 4, sqlite3 | ✅ Python/Flask 3.0 + SQLAlchemy, domínio Task Manager |
 | Fase 2 encontra ≥ 5 findings | ✅ 25 | ✅ 22 | ✅ 21 |
 | Fase 2 tem ≥ 1 CRITICAL ou HIGH | ✅ 13 | ✅ 11 | ✅ 7 |
-| Fase 3: a aplicação funciona após a refatoração | ✅ smoke 22/22 | ✅ smoke 8/8 | ✅ smoke 32/32 |
+| Fase 3: a aplicação funciona após a refatoração | ✅ smoke 41/41 (22 do baseline + 19 de autorização) | ✅ smoke 13/13 (8 do baseline + 5 de autorização) | ✅ smoke 49/49 (32 do baseline + 17 de autorização) |
+| Fase 3: AP-11 corrigido (sem pendência) | ✅ token assinado no login, matriz de acesso | ✅ rotas admin com `ADMIN_TOKEN` | ✅ token assinado, papel definido pelo servidor |
 
 ### Estrutura antes → depois
 
@@ -646,11 +656,11 @@ database.py          # conexão por requisição (g)
 errors.py
 config/              settings.py, constants.py
 models/              produto, usuario, pedido, sistema
-services/            pedido, relatorio, usuario, notification
+services/            pedido, relatorio, usuario, notification, auth
 controllers/         produto, usuario, pedido, relatorio,
                      sistema, validators
 views/               routes.py, serializers.py
-middlewares/         error_handler.py
+middlewares/         error_handler.py, auth.py
 ```
 </td></tr>
 <tr><td><b>2</b><br>God Class → MVC (Express)</td><td>
@@ -671,7 +681,7 @@ src/models/          user, course, enrollment, payment,
 src/services/        checkout, report, user, paymentGateway
 src/controllers/     checkout, report, user
 src/routes/          index.js
-src/middlewares/     errorHandler.js
+src/middlewares/     errorHandler.js, auth.js
 src/utils/           logger.js, password.js (scrypt)
 ```
 </td></tr>
@@ -694,14 +704,14 @@ database.py
 seed.py              # continua funcionando
 config/              settings.py, constants.py      (novo)
 models/              task, user, category           (mantido)
-services/            task, user, category, report,
+services/            task, user, category, report, auth,
                      notification (injetável)       (ampliado)
 controllers/         task, user, category, report,
                      system, validators             (novo)
 routes/              task, user, report, category,
                      system                         (mantido)
 views/               serializers.py                 (novo)
-middlewares/         error_handler.py               (novo)
+middlewares/         error_handler.py, auth.py      (novo)
 utils/               helpers.py, security.py        (reaproveitado)
 ```
 </td></tr>
@@ -736,35 +746,49 @@ Cada item foi conferido por mim de forma independente, além do resumo da própr
 | Error handling centralizado | ✅ `middlewares/error_handler.py` | ✅ `src/middlewares/errorHandler.js` | ✅ `middlewares/error_handler.py` |
 | Entry point claro | ✅ `app.py` (`create_app`) | ✅ `src/app.js` (`npm start`) | ✅ `app.py` (`create_app`) |
 | Aplicação inicia sem erros | ✅ `python app.py` | ✅ `npm start` | ✅ `python seed.py && python app.py` |
-| Endpoints originais respondem corretamente | ✅ 22/22 | ✅ 8/8 (receitas 997 e 994 iguais às originais) | ✅ 32/32 (skill: 50/59 iguais ao baseline + 9 diferenças intencionais de segurança) |
+| Endpoints originais respondem corretamente | ✅ 22/22 (com token do papel adequado) | ✅ 8/8 (receitas 997 e 994 iguais às originais; rotas admin com `ADMIN_TOKEN`) | ✅ 32/32 (com token do papel adequado) |
+| Autenticação e autorização (AP-11) | ✅ 19/19 checagens | ✅ 5/5 checagens | ✅ 17/17 checagens |
 
 **Verificações extras de segurança feitas depois da refatoração:**
 - **P1:**
   - Login com SQL Injection → `401`.
   - `/admin/query` → `404` (removido).
-  - `/admin/reset-db` sem token → `403`.
+  - `/admin/reset-db` sem token → `401`; com token de cliente → `403`; só admin reseta.
+  - Login devolve token assinado em `dados.token`; rotas admin sem token → `401`, com token de cliente → `403`; token adulterado → `401`.
+  - Cliente não cria pedido em nome de outro usuário nem lê pedidos/dados de outro usuário (`403`).
+  - Cadastro com `"tipo":"admin"` → criado como `cliente`.
   - `/health` sem `secret_key`; `/usuarios/1` sem `senha`.
   - Preço em string → `400`.
 - **P2:**
   - Cartão inválido → `400`, e o servidor continua de pé.
   - O log mostra só o "cartão final 4444".
   - Nenhum segredo restante em `src/`.
+  - Relatório financeiro e `DELETE /api/users/:id` sem credencial, com credencial errada ou adulterada → `401`; com `ADMIN_TOKEN` → `200`. Sem `ADMIN_TOKEN` configurado, a app avisa no boot e as rotas admin ficam desabilitadas.
   - `npm audit fix`: de 13 para 8 vulnerabilidades (as restantes exigem major version → pendência).
 - **P3:**
   - `/login` e `/users/1` sem `password`.
+  - `/login` não devolve mais `fake-jwt-token-<id>`: o `token` é assinado (HMAC + expiração); `fake-jwt-token-1` e token adulterado → `401`.
+  - Cadastro público com `"role":"admin"` → criado com `role: user`; o usuário criado recebe `403` em `GET /users`. Admin autenticado consegue criar `manager`.
+  - Usuário comum: `403` em `GET /users`, `DELETE /users/1`, `/reports/summary`, escrita em categorias, dados de outro usuário e ao tentar mudar o próprio `role`.
   - Todos os hashes no banco em `scrypt`; hash MD5 legado migrado no login.
   - `"priority":"alta"` e `?priority=x` → `400` (antes eram `500`).
   - Log sem `DeprecationWarning`/`LegacyAPIWarning`.
 
+**Validação final (v1.2), além dos smoke tests:**
+- **Original × atual, requisição por requisição:** subi o código do commit inicial e o atual e comparei status HTTP e estrutura do JSON (2 níveis). As rotas protegidas foram chamadas com o token do papel adequado.
+  - P1: 17/23 iguais. As 6 diferenças são intencionais: `senha` e `secret_key`/`debug`/`db_path` removidos, `sucesso: false` acrescentado nos erros (mesmo status) e `token` acrescentado em `dados` no login.
+  - P2: 6/6 iguais (rotas admin com `ADMIN_TOKEN`).
+  - P3: 24/28 iguais. As 4 diferenças são a remoção de `password` das respostas.
+- **Casos de borda de autenticação (24/24):** token expirado (`TOKEN_MAX_AGE=2`) → 401; token assinado com outra `SECRET_KEY` → 401; requisição sem header → 401; promover ou rebaixar um usuário vale na hora, com o mesmo token (papel relido do banco); usuário desativado perde o acesso (401) e não consegue logar (403); usuário comum não altera o próprio `active` (403); `usuario_id` `"2"` (string) próprio → 201, de outro → 403; cadastro com token inválido → 401. Nenhum log com `Traceback` ou `DeprecationWarning`.
+
 ### Pendências (decisão humana)
 
-A skill não aplica automaticamente mudanças que quebram clientes ou alteram regra de negócio. Ficaram listadas para revisão:
-- **Todos os projetos:** exigir autenticação nas rotas hoje públicas (AP-11).
+A skill não aplica automaticamente mudanças que alteram regra de negócio ou infraestrutura. O AP-11 **não** está mais aqui: foi corrigido nos 3 projetos (ver acima). Ficaram listadas para revisão:
+- **Todos os projetos:** trocar o token próprio por um provedor de identidade externo (OAuth/SSO), se a empresa tiver um.
 - **P2:**
   - Atualizar para Express 5 / sqlite3 com correções (major version).
   - `DELETE /api/users/:id` mantém as matrículas e pagamentos, para preservar o histórico financeiro do relatório.
 - **P3:**
-  - Token `fake-jwt-token-<id>` e `role: admin` aceito no cadastro.
   - `CORS_ORIGINS=*` por padrão.
   - Validação de `color` em hex.
   - `NotificationService` pronto, mas não ligado a nenhum fluxo.
@@ -784,22 +808,29 @@ WARNING [__main__] SECRET_KEY não definida; usando chave aleatória (apenas des
 INFO [__main__] Servidor iniciado em http://0.0.0.0:5000 (debug=False)
  * Debug mode: off
 $ bash scripts/smoke-project-1.sh
-Resultado: 22 OK, 0 FAIL
+Autorização (AP-11):
+  OK   login devolve token assinado em dados.token
+  OK   cadastro público com tipo=admin vira tipo=cliente
+Resultado: 41 OK, 0 FAIL
 
-$ npm start                       # Projeto 2
+$ ADMIN_TOKEN=<aleatório> npm start   # Projeto 2
 [WARN] PAYMENT_GATEWAY_KEY não definida; gateway de pagamento roda em modo simulado (apenas desenvolvimento).
 [INFO] Frankenstein LMS rodando na porta 3000...
 [INFO] Processando pagamento de 997 com cartão final 4444 (gateway simulado)
-$ bash scripts/smoke-project-2.sh
+$ ADMIN_TOKEN=<o mesmo> bash scripts/smoke-project-2.sh
+  OK   GET /api/admin/financial-report -> 401
   OK   receitas do relatório conferem
-Resultado: 8 OK, 0 FAIL
+Resultado: 13 OK, 0 FAIL
 
 $ python seed.py && python -W default app.py   # Projeto 3
 Seed concluído com sucesso!
  * Debug mode: off
 INFO services.task_service: Task criada: 11
 $ bash scripts/smoke-project-3.sh
-Resultado: 32 OK, 0 FAIL
+Autorização (AP-11):
+  OK   login devolve token assinado (sem fake-jwt-token)
+  OK   cadastro público com role=admin vira role=user
+Resultado: 49 OK, 0 FAIL
 ```
 
 Nenhum dos três logs tem `Traceback` nem aviso de deprecated.
@@ -810,6 +841,7 @@ Nenhum dos três logs tem `Traceback` nem aviso de deprecated.
 - **Projeto 2 (Node + callbacks):** a mesma skill, sem alterações, identificou Express e o padrão de callbacks, converteu para `async/await` e criou um helper `transaction()` sobre o sqlite3. Manteve os nomes ruins do payload (`usr`, `eml`, `c_id`), traduzindo-os só dentro do controller, para não quebrar clientes.
 - **Projeto 3 (Flask já organizado):** reconheceu a "arquitetura em camadas só no nome" e usou a estratégia **incremental**: manteve `models/` e `routes/`, adicionou `controllers/`, `config/`, `middlewares/` e `views/`, e reaproveitou o código que existia mas não era usado. Também foi o único projeto com APIs deprecated de verdade, todas corrigidas.
 - **Em comum:** em todos os projetos a skill respeitou a pausa da Fase 2, preservou o contrato (mesmo comando, porta, rotas e envelope de resposta) e reportou com honestidade o que não corrigiu.
+- **AP-11 em stacks diferentes (v1.2):** o mesmo T16 gerou três soluções adequadas a cada projeto. P1 (SQL cru): token em `dados.token`, sem mudar as chaves de primeiro nível da resposta. P3 (ORM): o `token` substitui o `fake-jwt-token` na mesma chave e o papel passa a ser do servidor. P2 (Node, sem login): credencial de admin definida no servidor (`ADMIN_TOKEN`) e comparada em tempo constante.
 
 ## D) Como Executar
 
@@ -841,32 +873,33 @@ Em cada projeto:
 1. A skill imprime a **Fase 1** (stack e endpoints).
 2. Imprime e salva a **Fase 2** (relatório) e pergunta `Proceed with refactoring (Phase 3)? [y/n]`.
 3. Revise o relatório e responda `y` para refatorar, ou qualquer outra coisa para não alterar nada.
-4. Ao final, a **Fase 3** imprime a nova estrutura, os findings tratados, as pendências e a validação.
+4. Ao final, a **Fase 3** imprime a nova estrutura, os findings tratados, as mudanças de contrato de segurança (incluindo a matriz de acesso do AP-11), as pendências e a validação.
 
 > Para rodar a skill de novo sobre o código **original**, use o commit inicial (`git checkout 6d1ce62 -- <projeto>`), já que este repositório guarda a versão refatorada.
 
 ### Validar que a refatoração funcionou
 
-Rode cada projeto e o seu smoke test (os scripts comparam os status HTTP com o baseline do código original):
+Rode cada projeto e o seu smoke test. Os scripts repetem as requisições do baseline do código original (com o token do papel adequado, obtido via `POST /login`) e depois testam a autorização: 401 sem token, 403 sem papel e papel definido pelo servidor no cadastro.
 
 ```bash
 # Projeto 1 (porta 5000) — banco é recriado no boot
 cd code-smells-project
 pip install -r requirements.txt
 rm -f loja.db && python app.py &
-bash ../scripts/smoke-project-1.sh          # esperado: 22 OK, 0 FAIL
+bash ../scripts/smoke-project-1.sh          # esperado: 41 OK, 0 FAIL
 
 # Projeto 2 (porta 3000) — banco em memória; reinicie o servidor entre execuções
 cd ../ecommerce-api-legacy
 npm install
+export ADMIN_TOKEN=$(node -e "console.log(require('crypto').randomBytes(24).toString('hex'))")
 npm start &
-bash ../scripts/smoke-project-2.sh          # esperado: 8 OK, 0 FAIL
+bash ../scripts/smoke-project-2.sh          # esperado: 13 OK, 0 FAIL (usa o mesmo ADMIN_TOKEN)
 
 # Projeto 3 (porta 5000) — derrube o Projeto 1 antes
 cd ../task-manager-api
 pip install -r requirements.txt
 python seed.py && python app.py &
-bash ../scripts/smoke-project-3.sh          # esperado: 32 OK, 0 FAIL
+bash ../scripts/smoke-project-3.sh          # esperado: 49 OK, 0 FAIL
 ```
 
 Para checar avisos de deprecated, suba com `python -W default app.py` ou `node --trace-deprecation src/app.js` e confirme que o log não tem `DeprecationWarning` nem `Traceback`. Segredos são opcionais em desenvolvimento: sem eles, a app gera uma chave aleatória e mostra um aviso. Em produção, configure as variáveis de ambiente listadas no `.env.example` de cada projeto.

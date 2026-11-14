@@ -22,7 +22,7 @@ USER_ROLES = ("user", "admin", "manager")
 DEFAULT_ROLE = "user"
 ADMIN_ROLE = "admin"
 MIN_PASSWORD_LENGTH = 4
-LEGACY_TOKEN_PREFIX = "fake-jwt-token-"  # token não verificado (ver pendências da refatoração)
+DEFAULT_TOKEN_MAX_AGE_SECONDS = 8 * 60 * 60  # validade do token de acesso emitido no login
 
 # Categorias
 DEFAULT_CATEGORY_COLOR = "#000000"

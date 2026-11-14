@@ -25,5 +25,7 @@ def usuarios(registros):
     return [usuario(r) for r in registros]
 
 
-def usuario_login(registro):
-    return _pick(registro, USUARIO_LOGIN_CAMPOS)
+def usuario_login(registro, token):
+    dados = _pick(registro, USUARIO_LOGIN_CAMPOS)
+    dados["token"] = token  # signed access token: send it as "Authorization: Bearer <token>"
+    return dados

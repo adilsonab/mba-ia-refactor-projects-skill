@@ -17,6 +17,7 @@ const { createReportController } = require('./controllers/reportController');
 const { createUserController } = require('./controllers/userController');
 const { buildRoutes } = require('./routes');
 const { errorHandler } = require('./middlewares/errorHandler');
+const { createRequireAdmin } = require('./middlewares/auth');
 
 // Composition root: cria as dependências e as injeta camada por camada.
 function createApp(db) {
@@ -40,6 +41,7 @@ function createApp(db) {
         checkoutController: createCheckoutController({ checkoutService }),
         reportController: createReportController({ reportService }),
         userController: createUserController({ userService }),
+        requireAdmin: createRequireAdmin({ adminToken: config.adminToken }),
     }));
     app.use(errorHandler);
     return app;

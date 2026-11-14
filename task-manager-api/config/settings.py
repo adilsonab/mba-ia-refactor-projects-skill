@@ -2,6 +2,8 @@
 import os
 import secrets
 
+from config.constants import DEFAULT_TOKEN_MAX_AGE_SECONDS
+
 try:  # python-dotenv é opcional: permite usar um arquivo .env local
     from dotenv import load_dotenv
 
@@ -25,6 +27,8 @@ class Config:
     # Segredo: nunca fixo no código. Sem SECRET_KEY no ambiente, gera um aleatório (apenas desenvolvimento).
     SECRET_KEY_FROM_ENV = bool(os.environ.get("SECRET_KEY"))
     SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+    # Validade (segundos) do token assinado emitido em POST /login.
+    TOKEN_MAX_AGE = int(os.environ.get("TOKEN_MAX_AGE", str(DEFAULT_TOKEN_MAX_AGE_SECONDS)))
 
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///tasks.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False

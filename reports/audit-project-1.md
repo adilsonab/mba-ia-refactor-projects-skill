@@ -21,7 +21,7 @@ CRITICAL: 6 | HIGH: 7 | MEDIUM: 6 | LOW: 6
 | 8 | HIGH | AP-08 Data access outside Model | app.py:49-55, app.py:66-76, controllers.py:266-274 |
 | 9 | HIGH | AP-09 Mutable global state | database.py:4-11 |
 | 10 | HIGH | AP-10 Insecure configuration | app.py:8, app.py:9, app.py:88, controllers.py:286-288, database.py:5 |
-| 11 | HIGH | AP-11 Missing authentication/authorization | app.py:16, app.py:18, app.py:26, app.py:28, app.py:47, app.py:59, controllers.py:180 |
+| 11 | HIGH | AP-11 Missing authentication/authorization | app.py:16, app.py:18, app.py:26, app.py:28, app.py:47, app.py:59, controllers.py:180, controllers.py:195, controllers.py:222 |
 | 12 | HIGH | AP-12 Multi-write without transaction | models.py:133-169 |
 | 13 | HIGH | AP-13 Coupling to side effects | controllers.py:208-210, controllers.py:247-250 |
 | 14 | MEDIUM | AP-14 N+1 queries | models.py:139-141, models.py:154-156, models.py:187-199, models.py:219-231 |
@@ -67,7 +67,7 @@ Recommendation: Remove `senha` from every serializer (a dedicated `to_public_dic
 File: app.py:47-57, app.py:59-78
 Description: `POST /admin/query` runs `cursor.execute(dados.get("sql"))` with any SQL sent by the client and commits it; `POST /admin/reset-db` runs `DELETE FROM` on all 4 tables. Neither has any authentication.
 Impact: Any network client (the server listens on `0.0.0.0`) can read, alter or wipe the whole database.
-Recommendation: Remove `/admin/query`; protect `/admin/reset-db` (e.g. enable it only with an admin token from the environment, or only in development) (→ T16).
+Recommendation: Remove `/admin/query`; require the admin role (signed Bearer token, see #11) on `/admin/reset-db` (→ T16).
 
 ### #6 [CRITICAL] AP-06 — God File
 File: models.py:1-314, database.py:7-86
@@ -100,10 +100,10 @@ Impact: The interactive debugger allows remote code execution if an exception pa
 Recommendation: Config module reading `FLASK_DEBUG`, `HOST`, `PORT`, `DATABASE_PATH`, `CORS_ORIGINS` from the environment with safe defaults; `create_app()` factory (→ T02 + T17).
 
 ### #11 [HIGH] AP-11 — Missing authentication/authorization
-File: app.py:16, app.py:18, app.py:26, app.py:28, app.py:47, app.py:59, controllers.py:180
-Description: No route has any authentication: `DELETE /produtos/<id>`, `GET /usuarios` (full listing), `PUT /pedidos/<id>/status`, `GET /relatorios/vendas` (financial data) and the `/admin/*` routes are public. `POST /login` returns only user data, with no token/session, so nothing can be protected afterwards.
-Impact: Any client can delete products, approve/cancel orders and read revenue figures. (The admin endpoints are already counted as CRITICAL in #5.)
-Recommendation: Introduce token-based auth and an admin-role decorator. Requiring auth on routes that are public today breaks the contract → human decision (→ T16).
+File: app.py:16, app.py:18, app.py:26, app.py:28, app.py:47, app.py:59, controllers.py:180, controllers.py:195, controllers.py:222
+Description: No route has any authentication: `DELETE /produtos/<id>`, `GET /usuarios` (full listing), `PUT /pedidos/<id>/status`, `GET /relatorios/vendas` (financial data) and the `/admin/*` routes are public. `POST /login` returns only user data, with no token/session (`return jsonify({"dados": usuario, ...})`), so nothing can be protected afterwards. `POST /pedidos` trusts `usuario_id = dados.get("usuario_id")` from the body and `GET /pedidos/usuario/<id>` returns any user's orders.
+Impact: Any client can delete products, approve/cancel orders, read revenue figures and place/read orders on behalf of other customers. (The admin endpoints are already counted as CRITICAL in #5.)
+Recommendation: Fixed in Phase 3, not deferred (→ T16): `POST /login` issues a signed, expiring token (HMAC with `SECRET_KEY`) added as `dados.token`; `middlewares/auth.py` validates `Authorization: Bearer` and re-reads `tipo` from the database; access matrix — public: catalog reads, sign-up, login, health; owner-or-admin: `GET /usuarios/<id>`, `POST /pedidos` (body `usuario_id` must match the token), `GET /pedidos/usuario/<id>`; admin: product writes, `GET /usuarios`, `GET /pedidos`, `PUT /pedidos/<id>/status`, `GET /relatorios/vendas`, `/admin/reset-db`. Sign-up keeps the server-defined role (`cliente`). Listed as a security contract change (401 without token, 403 without role).
 
 ### #12 [HIGH] AP-12 — Multi-write operation without transaction
 File: models.py:133-169

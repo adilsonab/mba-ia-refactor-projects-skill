@@ -30,7 +30,7 @@ Os caminhos são relativos ao diretório desta skill (`.claude/skills/refactor-a
 1. **Nenhum arquivo do projeto é criado, alterado ou removido antes da confirmação explícita do usuário ao final da Fase 2.** A única escrita permitida antes disso é o relatório no caminho passado em `$ARGUMENTS` (fora do código-fonte).
 2. **Nunca invente achados.** Todo finding precisa de arquivo e linha(s) que você **leu** e conferiu. Se um item do catálogo não ocorre, ele não entra no relatório. Se não há APIs deprecated, diga "Nenhuma detectada".
 3. **Ignore** na análise: `.git/`, `.claude/`, `node_modules/`, `venv/`, `.venv/`, `__pycache__/`, `dist/`, `build/`, `instance/`, arquivos `*.db`/`*.sqlite`, lockfiles (`package-lock.json`, `poetry.lock`, ...) e binários.
-4. **Preserve o contrato externo** na Fase 3 (rotas, métodos, nomes de campos de entrada, formato das respostas, status HTTP e o comando de inicialização documentado). Ver `mvc-guidelines.md`.
+4. **Preserve o contrato externo** na Fase 3 (rotas, métodos, nomes de campos de entrada, formato das respostas, status HTTP e o comando de inicialização documentado). Ver `mvc-guidelines.md`. As únicas exceções são as **mudanças de segurança permitidas** de `mvc-guidelines.md` §4 — entre elas a correção do AP-11 (token assinado, rotas protegidas por papel, papel definido pelo servidor), que é **sempre aplicada** e nunca enviada para "Pending".
 5. **Adapte-se ao contexto:** um monolito é decomposto; um projeto já parcialmente organizado é melhorado incrementalmente (reaproveite pastas e código existentes).
 6. Toda saída para o usuário segue os blocos de formato definidos abaixo e no template.
 7. **Não execute comandos git que alterem o repositório** (`git checkout -b`, `git switch`, `git add`, `git commit`, `git stash`...). Versionamento é decisão do usuário; ao final apenas informe os arquivos alterados.
@@ -108,15 +108,17 @@ Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]
    3. Services/regras de negócio e dependências injetáveis (ex.: notificações).
    4. Controllers (fluxo da requisição, validação de entrada).
    5. Views/Routes (somente mapeamento HTTP → controller e serialização).
-   6. Middlewares (error handler centralizado; logging).
+   6. Middlewares (error handler centralizado; logging; **autenticação/autorização** — T16).
    7. Entry point / composition root (o comando de execução original deve continuar funcionando).
-   8. Correções de segurança, performance, deprecated e LOW restantes.
-   9. Remoção dos arquivos antigos que foram totalmente substituídos (nunca deixe duas implementações da mesma regra).
+   8. **Autenticação real (AP-11, T16):** classifique cada endpoint pela matriz de acesso de `mvc-guidelines.md` §4, emita token assinado com expiração no login, aplique `login_required`/`admin_required` (ou equivalente) nas rotas, imponha papel definido pelo servidor no cadastro/update e garanta um admin no seed. Atualize o README do projeto e o `.env.example`.
+   9. Correções de segurança, performance, deprecated e LOW restantes.
+   10. Remoção dos arquivos antigos que foram totalmente substituídos (nunca deixe duas implementações da mesma regra).
    - Se uma dependência nova for realmente necessária, adicione-a ao manifesto e instale. Prefira a biblioteca padrão.
 5. **Valide** (obrigatório, ver "Protocolo de validação" em `mvc-guidelines.md`):
    - Compilação/sintaxe de todos os arquivos (ex.: `python -m compileall -q .`, `node --check`).
    - Boot: suba a aplicação com o **comando original**; o processo deve permanecer vivo e sem stack traces/warnings de deprecated no log.
-   - Endpoints: repita as mesmas requisições do baseline e compare **status HTTP** e **estrutura (chaves) do JSON**. Diferenças só são aceitas se forem intencionais e de segurança (ex.: campo `password` removido) e devem ser listadas.
+   - Endpoints: repita as mesmas requisições do baseline (enviando `Authorization: Bearer <token>` de um admin/dono nas rotas protegidas) e compare **status HTTP** e **estrutura (chaves) do JSON**. Diferenças só são aceitas se forem intencionais e de segurança (ex.: campo `password` removido) e devem ser listadas.
+   - Autorização (AP-11): sem token → 401; token adulterado → 401; usuário comum em rota admin ou em recurso de outro usuário → 403; cadastro público com papel admin → criado com o papel padrão.
    - Re-auditoria: procure novamente os sinais CRITICAL/HIGH do catálogo no código novo.
    - Se algo falhar: corrija e valide de novo (máximo 3 ciclos); se persistir, reporte honestamente.
    - Derrube o servidor ao final.
@@ -132,14 +134,18 @@ PHASE 3: REFACTORING COMPLETE
 ## Findings Addressed
 <lista: [SEV] Nome → transformação aplicada (arquivo novo)>
 
+## Security Contract Changes
+<mudanças de contrato de segurança aplicadas (ex.: matriz de acesso do AP-11, campos sensíveis removidos), ou "None">
+
 ## Pending (requires human decision)
-<itens não corrigidos automaticamente por quebrarem contrato ou exigirem decisão de negócio, ou "None">
+<itens não corrigidos automaticamente por exigirem decisão de negócio ou de infraestrutura (nunca o AP-11), ou "None">
 
 ## Validation
   ✓/✗ Application boots without errors (<comando>)
   ✓/✗ All endpoints respond correctly (<X>/<Y> requests match baseline)
+  ✓/✗ Authentication enforced (401 without token, 403 without role, server-defined role on sign-up)
   ✓/✗ No deprecated API warnings at runtime
-  ✓/✗ No CRITICAL/HIGH anti-patterns remaining (exceto pendências listadas)
+  ✓/✗ No CRITICAL/HIGH anti-patterns remaining (AP-11 incluído)
 ================================
 ```
 

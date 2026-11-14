@@ -15,6 +15,10 @@ class NotFoundError extends AppError {
     constructor(message) { super(message, 404); }
 }
 
+class UnauthorizedError extends AppError {
+    constructor(message = 'Não autorizado') { super(message, 401); }
+}
+
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // eslint-disable-next-line no-unused-vars
@@ -27,4 +31,4 @@ function errorHandler(err, req, res, next) {
     return res.status(500).send('Erro interno');
 }
 
-module.exports = { AppError, ValidationError, NotFoundError, asyncHandler, errorHandler };
+module.exports = { AppError, ValidationError, NotFoundError, UnauthorizedError, asyncHandler, errorHandler };

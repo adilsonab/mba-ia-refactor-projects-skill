@@ -9,7 +9,9 @@ NOME_PRODUTO_MIN = 2
 NOME_PRODUTO_MAX = 200
 
 # Users
-TIPO_USUARIO_PADRAO = "cliente"
+TIPO_USUARIO_PADRAO = "cliente"  # public sign-up always gets this role (server-defined)
+TIPO_ADMIN = "admin"
+TOKEN_MAX_AGE_PADRAO = 8 * 60 * 60  # access token validity (seconds)
 
 # Orders
 STATUS_PEDIDO_INICIAL = "pendente"

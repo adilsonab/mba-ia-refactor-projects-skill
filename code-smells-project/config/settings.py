@@ -2,6 +2,8 @@
 import os
 import secrets
 
+from config.constants import TOKEN_MAX_AGE_PADRAO
+
 
 def _env_flag(name, default="0"):
     return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
@@ -22,7 +24,7 @@ class Config:
     # Comma-separated list of allowed origins; "*" keeps the original (open) behaviour.
     CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
 
-    # Token required by POST /admin/reset-db (header X-Admin-Token). Unset = endpoint disabled.
-    ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN") or None
+    # Validity (seconds) of the signed access token issued by POST /login.
+    TOKEN_MAX_AGE = int(os.environ.get("TOKEN_MAX_AGE", str(TOKEN_MAX_AGE_PADRAO)))
 
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()

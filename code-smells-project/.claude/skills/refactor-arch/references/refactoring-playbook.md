@@ -19,7 +19,7 @@ Cada transformação indica os anti-patterns que resolve, os passos e um exemplo
 | T13 | Constantes nomeadas | AP-21, AP-15 |
 | T14 | Logging estruturado | AP-22 |
 | T15 | Efeitos colaterais via serviço injetável | AP-13 |
-| T16 | Remover/proteger endpoints perigosos | AP-05, AP-11 |
+| T16 | Remover/proteger endpoints perigosos e implementar autenticação real (token assinado + papel definido pelo servidor) | AP-05, AP-11 |
 | T17 | App factory / composition root | AP-06, AP-10 |
 
 ---
@@ -507,20 +507,163 @@ class PedidoService:
         return pedido
 ```
 
-## T16 — Remover/proteger endpoints perigosos
-**Passos:** remover rotas de execução arbitrária (SQL/código vindo do cliente); proteger rotas destrutivas administrativas com token de ambiente (desabilitadas se o token não estiver configurado); impedir que o cliente defina o próprio privilégio **somente** se não quebrar o contrato — caso contrário, listar como pendência.
+## T16 — Remover/proteger endpoints perigosos e implementar autenticação real
+Resolve AP-05 e **AP-11 por completo**. AP-11 nunca vai para "Pending": a exigência de token nas rotas protegidas é mudança de contrato de segurança permitida (`mvc-guidelines.md` §4) e deve ser listada no resumo.
+
+**Passos:**
+1. **Remover** rotas de execução arbitrária (SQL/código vindo do cliente).
+2. **Classificar** cada endpoint do inventário pela matriz de acesso (`mvc-guidelines.md` §4): público / autenticado (dono ou admin) / admin.
+3. **Emitir token assinado no login:** HMAC com o `SECRET_KEY` da config (T02), com expiração; payload só com o id do usuário. Mantenha a chave da resposta original (`token`) ou adicione `token` dentro do envelope existente. Python/Flask: `itsdangerous` (já é dependência do Flask — fixe-a no manifesto); Node: `crypto.createHmac` (sem dependência nova). Em outras stacks, a biblioteca JWT/assinatura idiomática.
+4. **Middleware de auth** (`middlewares/auth.*`): lê `Authorization: Bearer <token>`, valida assinatura e expiração, **recarrega o usuário do banco** (papel e `active` vêm do banco, nunca do token nem do corpo) e o disponibiliza na requisição (`g.current_user` / `req.user`). Erros: sem token/inválido/expirado/usuário inexistente ou inativo → 401; sem papel → 403 (via exceções do error handler central, T08).
+5. **Aplicar a política na camada de rotas** (decorators `login_required`/`admin_required` ou middlewares por rota), deixando a matriz visível no arquivo de rotas. Verificação de **dono** (`usuario_id` da rota/corpo == usuário do token, salvo admin) fica no controller, com helper único `ensure_self_or_admin`.
+6. **Papel definido pelo servidor:** o cadastro público grava o papel padrão e ignora `role`/`tipo`/`is_admin` do corpo; se quem chama é admin autenticado, o papel informado é aceito (validado contra a lista de papéis). No update, alterar `role`/`active` exige admin (403 para os demais).
+7. **Projetos sem login/papéis:** proteger as rotas admin com credencial do servidor (`ADMIN_TOKEN` do ambiente, enviada como Bearer, comparada com `hmac.compare_digest`/`crypto.timingSafeEqual`); sem a variável, rotas admin desabilitadas (401). Nunca gerar e logar um token.
+8. **Seed e documentação:** o seed deve ter ao menos um admin (senha com hash, T03); documente no README como obter e enviar o token e acrescente `SECRET_KEY`/`TOKEN_MAX_AGE`/`ADMIN_TOKEN` ao `.env.example`.
+9. **Validar** (`mvc-guidelines.md` §6): mesmas respostas do baseline com token; 401 sem token/adulterado; 403 para usuário comum em rota admin e em recurso de outro usuário; cadastro com `role: admin` sem token → papel padrão.
 
 ```python
 # ANTES
 @app.route("/admin/query", methods=["POST"])
 def executar_query():
-    cursor.execute(request.get_json()["sql"])
+    cursor.execute(request.get_json()["sql"])          # → rota REMOVIDA
 
-# DEPOIS — rota removida. Reset protegido:
-def require_admin_token():
-    expected = current_app.config.get("ADMIN_TOKEN")
-    if not expected or not hmac.compare_digest(request.headers.get("X-Admin-Token", ""), expected):
-        raise AppError("Não autorizado", 403)
+def login():
+    ...
+    return jsonify({"token": "fake-jwt-token-" + str(user.id), "user": user.to_dict()})
+
+def create_user():
+    user = User(name=data["name"], email=data["email"], role=data.get("role", "user"))  # cliente escolhe o papel
+
+# DEPOIS — services/auth_service.py (token assinado com expiração)
+import hashlib
+from flask import current_app
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
+def _serializer():  # HMAC-SHA256 (o padrão do itsdangerous é SHA1)
+    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt="auth-token",
+                                  signer_kwargs={"digest_method": hashlib.sha256})
+
+def issue_token(user):
+    return _serializer().dumps({"uid": user.id})
+
+def user_from_token(token):
+    try:
+        data = _serializer().loads(token, max_age=current_app.config["TOKEN_MAX_AGE"])
+    except (BadSignature, SignatureExpired):
+        raise UnauthorizedError("Token inválido ou expirado") from None
+    user = User.get_by_id(data.get("uid"))            # papel e status relidos do banco
+    if user is None or not user.active:
+        raise UnauthorizedError("Token inválido ou expirado")
+    return user
+
+# DEPOIS — middlewares/auth.py
+from functools import wraps
+from flask import g, request
+
+def _authenticate():
+    header = request.headers.get("Authorization", "")
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise UnauthorizedError("Autenticação necessária")
+    g.current_user = auth_service.user_from_token(token.strip())
+
+def login_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        _authenticate()
+        return view(*args, **kwargs)
+    return wrapper
+
+def admin_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        _authenticate()
+        if not g.current_user.is_admin():
+            raise ForbiddenError("Acesso restrito a administradores")
+        return view(*args, **kwargs)
+    return wrapper
+
+def optional_user():
+    """Usuário autenticado ou None (para o cadastro público aceitar papel apenas de admin)."""
+    try:
+        _authenticate()
+        return g.current_user
+    except UnauthorizedError:
+        return None
+
+def ensure_self_or_admin(user_id):
+    if g.current_user.id != user_id and not g.current_user.is_admin():
+        raise ForbiddenError("Acesso negado")
+
+# DEPOIS — routes/user_routes.py (matriz de acesso visível)
+user_bp.add_url_rule("/users", view_func=admin_required(user_controller.list_users), methods=["GET"])
+user_bp.add_url_rule("/users", view_func=user_controller.create_user, methods=["POST"])        # público
+user_bp.add_url_rule("/users/<int:user_id>", view_func=login_required(user_controller.get_user), methods=["GET"])
+user_bp.add_url_rule("/users/<int:user_id>", view_func=admin_required(user_controller.delete_user), methods=["DELETE"])
+user_bp.add_url_rule("/login", view_func=user_controller.login, methods=["POST"])              # público
+
+# DEPOIS — controllers/user_controller.py (papel definido pelo servidor)
+def create_user():
+    fields = validators.user_create_payload(validators.json_body())
+    caller = optional_user()
+    if caller is None or not caller.is_admin():
+        fields["role"] = DEFAULT_ROLE                  # cadastro público nunca escolhe o papel
+    return jsonify(user_service.create_user(**fields).to_dict()), 201
+
+def update_user(user_id):
+    ensure_self_or_admin(user_id)
+    changes = validators.user_update_payload(validators.json_body())
+    if ({"role", "active"} & changes.keys()) and not g.current_user.is_admin():
+        raise ForbiddenError("Somente administradores alteram papel ou status")
+    ...
+
+def login():
+    ...
+    return jsonify({"token": auth_service.issue_token(user), "user": user.to_dict()}), 200  # mesma chave "token"
+```
+
+```js
+// DEPOIS — src/utils/token.js (HMAC-SHA256 + expiração, sem dependências)
+const crypto = require('crypto');
+const b64 = (buf) => Buffer.from(buf).toString('base64url');
+function signToken(payload, secret, ttlSeconds) {
+  const body = b64(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + ttlSeconds }));
+  return `${body}.${b64(crypto.createHmac('sha256', secret).update(body).digest())}`;
+}
+function verifyToken(token, secret) {
+  const [body, sig] = String(token).split('.');
+  if (!body || !sig) return null;
+  const expected = crypto.createHmac('sha256', secret).update(body).digest();
+  const given = Buffer.from(sig, 'base64url');
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+  const payload = JSON.parse(Buffer.from(body, 'base64url').toString());
+  return payload.exp > Date.now() / 1000 ? payload : null;
+}
+
+// DEPOIS — src/middlewares/auth.js
+const bearer = (req) => { const [s, t] = (req.get('authorization') || '').split(' '); return s?.toLowerCase() === 'bearer' ? t : null; };
+function createAuth({ userModel, config }) {
+  const authenticate = async (req, res, next) => {
+    const payload = verifyToken(bearer(req), config.secretKey);
+    const user = payload && await userModel.findById(payload.uid);   // papel relido do banco
+    if (!user) return next(new UnauthorizedError());
+    req.user = user; next();
+  };
+  const requireAdmin = (req, res, next) => (req.user.role === 'admin' ? next() : next(new ForbiddenError()));
+  return { authenticate, requireAdmin };
+}
+// Sem usuários/papéis no projeto: credencial de admin definida no servidor
+function requireAdminToken(config) {
+  return (req, res, next) => {
+    const expected = Buffer.from(config.adminToken || '');
+    const given = Buffer.from(bearer(req) || '');
+    if (!expected.length || given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+      return next(new UnauthorizedError());
+    }
+    next();
+  };
+}
+// routes: router.get('/api/admin/financial-report', requireAdminToken(config), asyncHandler(...));
 ```
 
 ## T17 — App factory / composition root

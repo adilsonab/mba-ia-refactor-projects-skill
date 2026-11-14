@@ -11,7 +11,7 @@ Para APIs backend, "View" é a camada de apresentação HTTP: **definição de r
 | **Service** (opcional, recomendado quando há regra que envolve várias entidades ou efeitos externos) | `services/` | Regras de negócio/casos de uso (checkout, criação de pedido, relatórios), orquestração de models, efeitos colaterais via dependências injetadas (notificação, pagamento) | Conhecer HTTP |
 | **Controller** | `controllers/` | Fluxo da requisição: extrair e validar input, chamar service/model, escolher status HTTP, delegar serialização | Ter SQL, regras de negócio extensas, segredos |
 | **View / Routes** | `views/` ou `routes/` | Mapear `METHOD /path` → função do controller; serializadores/presenters que definem o formato da resposta (removendo campos sensíveis) | Ter lógica além do mapeamento/serialização |
-| **Middlewares** | `middlewares/` | Error handler centralizado, logging de requisições, (auth quando aprovado) | Regras de negócio |
+| **Middlewares** | `middlewares/` | Error handler centralizado, logging de requisições, **autenticação/autorização** (validar token, carregar o usuário do banco, exigir papel) | Regras de negócio |
 | **Entry point / composition root** | `app.py` / `src/app.js` (ou `server.js`) | Criar o app (factory), carregar config, inicializar banco, instanciar dependências e registrar rotas e middlewares | Ter rotas de negócio inline |
 
 ### Regra de dependência
@@ -74,13 +74,28 @@ Devem permanecer **idênticos**:
 Mudanças de contrato **permitidas** (por segurança) — devem ser listadas no resumo da Fase 3:
 - Remover campos sensíveis das respostas (`password`, `senha`, hash, `secret_key`, `debug`, `db_path`).
 - Trocar mensagens de erro internas (`str(e)`) por mensagens genéricas, **mantendo o status HTTP**.
-- Remover endpoints de execução arbitrária (AP-05, ex.: `/admin/query`). Endpoints destrutivos administrativos (ex.: reset) podem ser mantidos protegidos por token configurado via ambiente (desabilitados quando o token não está definido).
+- Remover endpoints de execução arbitrária (AP-05, ex.: `/admin/query`). Endpoints destrutivos administrativos (ex.: reset) passam a exigir papel admin.
 - Transformar 500 causados por input inválido em 400.
+- **Corrigir AP-11 (obrigatório, nunca vai para "Pending")** com o padrão de T16:
+  - Login passa a emitir **token assinado com expiração** (mesma chave da resposta original, ex.: `token`; se o login não tinha token, adicione o campo `token` dentro do envelope existente — mudança aditiva).
+  - Rotas protegidas exigem `Authorization: Bearer <token>`: sem token/token inválido → **401**; autenticado sem permissão → **403**. Com token válido e permitido, a resposta é **idêntica ao baseline**.
+  - **Papel definido pelo servidor:** o cadastro público ignora `role`/`tipo`/`is_admin` do corpo e grava o papel padrão; só um admin autenticado define ou altera papel/`active`. O token carrega apenas o id; o papel é **relido do banco** a cada requisição.
+  - Quando o projeto não tem usuários com papel nem login (ex.: só rotas administrativas), a credencial de admin é definida no servidor por variável de ambiente (`ADMIN_TOKEN`) e enviada como Bearer; sem a variável, as rotas admin ficam desabilitadas (401).
+
+### Matriz de acesso (aplique a cada endpoint do inventário da Fase 1)
+
+| Nível | Quem acessa | Endpoints típicos |
+|---|---|---|
+| **Público** | qualquer cliente | `/`, `/health`, `POST /login`, cadastro público, leitura de catálogo à venda (produtos, cursos), fluxo de compra público (checkout) |
+| **Autenticado (dono ou admin)** | usuário com token válido; quando o recurso pertence a um usuário, só o **dono** ou um admin | ler/alterar o próprio usuário, listar os próprios pedidos/tasks, relatório do próprio usuário, criar pedido (o `usuario_id` do corpo deve ser o do token, salvo admin), dados internos de um sistema fechado (ex.: tasks e categorias de um task manager) |
+| **Admin** | papel admin (lido do banco) ou `ADMIN_TOKEN` | listar todos os usuários, excluir usuário, alterar papel/`active`, escrita no catálogo (produtos, categorias), mudar status de pedido, relatórios financeiros/globais, `/admin/*` |
+
+Registre a matriz no resumo da Fase 3 (seção "Findings Addressed", item do AP-11) e documente o uso do token no README do projeto.
 
 Mudanças que **NÃO** devem ser aplicadas automaticamente (listar em "Pending (requires human decision)"):
-- Exigir autenticação em endpoint hoje público (quebra clientes).
 - Alterar regras de negócio (valores de desconto, regra de aprovação de pagamento), apenas extraí-las para constantes/serviços.
 - Trocar o banco de dados ou major version de framework.
+- Trocar o mecanismo de autenticação por um provedor externo (OAuth/SSO) — a correção do AP-11 com token assinado **é** aplicada; só a troca de infraestrutura é decisão humana.
 
 ## 5. Convenções de qualidade no código refatorado
 
@@ -88,6 +103,7 @@ Mudanças que **NÃO** devem ser aplicadas automaticamente (listar em "Pending (
 - `debug` desligado por padrão (`FLASK_DEBUG`/`APP_DEBUG=1` para ligar). Host padrão pode permanecer o original para não quebrar o contrato de acesso, mas debug nunca ligado por padrão.
 - Queries 100% parametrizadas.
 - Senhas com hash forte (werkzeug `generate_password_hash`/`scrypt` do Node) e migração transparente de hashes legados (ver T03).
+- Nenhuma rota administrativa ou de dados de outro usuário sem o middleware de auth; nenhum papel lido do corpo da requisição pública; tokens assinados com o `SECRET_KEY` da config (T02) e com expiração.
 - Logging via `logging` (Python) / logger simples (Node) — sem `print`/`console.log` espalhados.
 - Um error handler central; controllers não repetem `try/except` genérico.
 - Sem imports mortos; constantes nomeadas para regras.
@@ -104,7 +120,8 @@ Execute **antes** (baseline, código original) e **depois** (código refatorado)
    - Node: `node --trace-deprecation src/app.js > <tmp>/server.log 2>&1 &` (ou `npm start`).
    - Aguarde a porta responder (loop curto com `curl`, até ~10s). Se não subir, leia o log.
 3. **Requisições:** para cada endpoint do inventário, execute as mesmas chamadas (válidas e inválidas) com `curl -s -o <tmp>/<n>.json -w "%{http_code}"`, **na mesma ordem** (a ordem importa quando há escrita). Inclua no mínimo: listagem, busca por id existente e inexistente, criação válida e inválida, atualização, exclusão, login correto e incorreto, relatórios.
-4. **Comparação:** para cada requisição, status HTTP igual ao baseline e mesmas chaves de primeiro nível no JSON (exceto remoções de segurança documentadas). Valores voláteis (timestamps, ids gerados) não precisam coincidir.
+   - **Depois da correção do AP-11:** faça login primeiro (usuário admin do seed e um usuário comum) e envie `Authorization: Bearer <token>` nas rotas protegidas, repetindo as mesmas requisições do baseline. Acrescente as checagens negativas: rota protegida sem token → 401, token adulterado → 401, usuário comum em rota admin → 403, usuário comum acessando recurso de outro usuário → 403, cadastro público com `role`/`tipo` = admin → criado com o papel padrão.
+4. **Comparação:** para cada requisição, status HTTP igual ao baseline e mesmas chaves de primeiro nível no JSON (exceto remoções de segurança documentadas). Valores voláteis (timestamps, ids gerados, tokens) não precisam coincidir.
 5. **Log:** o log do servidor não deve conter tracebacks nem warnings de deprecated originados no código do projeto.
 6. **Encerramento:** derrube **todos** os processos iniciados (o reloader do modo debug cria processo filho):
    - Linux/macOS: `kill <pid>` / `pkill -f "app.py"`.

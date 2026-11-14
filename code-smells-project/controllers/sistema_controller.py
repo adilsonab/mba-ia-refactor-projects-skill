@@ -1,11 +1,9 @@
-"""Index, health check and the (token-protected) administrative reset."""
-import hmac
+"""Index, health check and the (admin-only) administrative reset."""
 import logging
 
-from flask import current_app, jsonify, request
+from flask import current_app, jsonify
 
 from config.constants import API_VERSION
-from errors import ForbiddenError
 from models import sistema_model
 
 logger = logging.getLogger(__name__)
@@ -36,15 +34,7 @@ def health_check():
     }), 200
 
 
-def _exigir_token_admin():
-    esperado = current_app.config.get("ADMIN_TOKEN")
-    recebido = request.headers.get("X-Admin-Token", "")
-    if not esperado or not hmac.compare_digest(recebido.encode(), esperado.encode()):
-        raise ForbiddenError("Não autorizado")
-
-
-def reset_database():
-    _exigir_token_admin()
+def reset_database():  # admin only (admin_required in views/routes.py)
     sistema_model.limpar_todas_tabelas()
     logger.warning("Banco de dados resetado via /admin/reset-db")
     return jsonify({"mensagem": "Banco de dados resetado", "sucesso": True}), 200

@@ -82,7 +82,7 @@ Recommendation: Remover o cache sem leitores ou encapsulá-lo em um serviço inj
 File: src/AppManager.js:80, src/AppManager.js:131
 Description: `GET /api/admin/financial-report` (nomes de alunos e valores pagos) e `DELETE /api/users/:id` não têm nenhum middleware de autenticação/autorização.
 Impact: Qualquer cliente anônimo lê dados financeiros/pessoais e apaga usuários.
-Recommendation: Adicionar middleware de autenticação/papel admin. Como exigir auth quebra o contrato atual, isso deve ser decisão humana na Fase 3 (→ T16).
+Recommendation: Corrigir na Fase 3, sem enviar para pendência (→ T16): o projeto não tem login nem papéis, então aplicar o caso "credencial de admin definida no servidor" — middleware `requireAdmin` que exige `Authorization: Bearer <ADMIN_TOKEN>` (variável de ambiente, comparação em tempo constante; sem a variável, rotas admin desabilitadas) em `GET /api/admin/financial-report` e `DELETE /api/users/:id`; `POST /api/checkout` continua público. Listar como mudança de contrato de segurança (401 sem credencial).
 
 ### #9 [HIGH] AP-12 — Operação multi-escrita sem transação
 File: src/AppManager.js:50-61, src/AppManager.js:69-72

@@ -4,8 +4,9 @@ from flask import jsonify
 
 from controllers.validators import require_json, texto_obrigatorio
 from errors import NotFoundError, UnauthorizedError, ValidationError
+from middlewares.auth import exigir_dono_ou_admin
 from models import usuario_model
-from services import usuario_service
+from services import auth_service, usuario_service
 from views import serializers
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,7 @@ def listar_usuarios():
 
 
 def buscar_usuario(usuario_id):
+    exigir_dono_ou_admin(usuario_id)
     usuario = usuario_model.buscar_por_id(usuario_id)
     if not usuario:
         raise NotFoundError("Usuário não encontrado")
@@ -30,7 +32,7 @@ def criar_usuario():
     if not nome or not email or not senha:
         raise ValidationError("Nome, email e senha são obrigatórios")
 
-    usuario_id = usuario_service.criar(nome, email, senha)
+    usuario_id = usuario_service.criar(nome, email, senha)  # role ("tipo") is always the server default
     logger.info("Usuário criado: id=%s", usuario_id)
     return jsonify({"dados": {"id": usuario_id}, "sucesso": True}), 201
 
@@ -48,4 +50,5 @@ def login():
         raise UnauthorizedError("Email ou senha inválidos")
 
     logger.info("Login bem-sucedido: usuario id=%s", usuario["id"])
-    return jsonify({"dados": serializers.usuario_login(usuario), "sucesso": True, "mensagem": "Login OK"}), 200
+    dados_login = serializers.usuario_login(usuario, auth_service.emitir_token(usuario))
+    return jsonify({"dados": dados_login, "sucesso": True, "mensagem": "Login OK"}), 200

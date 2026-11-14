@@ -134,9 +134,13 @@ Cada entrada tem: **severidade padrão**, **o que é**, **sinais de detecção**
 
 ### AP-11 — Autenticação/autorização ausente ou falsa
 **O que é:** rotas administrativas/destrutivas sem autenticação; token falso; cliente define o próprio papel.
-**Sinais de detecção:** rotas `/admin/*`, `DELETE` de usuários, relatórios financeiros sem decorator/middleware de auth; `'fake-jwt-token-' + id`; `role = data.get('role', ...)` aceito no cadastro público.
-**Nota para a Fase 3:** exigir autenticação em rota hoje pública **quebra o contrato** → registrar em "Pending (requires human decision)", salvo quando o endpoint executa código arbitrário (AP-05).
-**Correção:** T16.
+**Sinais de detecção:**
+- Rotas `/admin/*`, `DELETE` de usuários, listagem de todos os usuários, troca de status/papel, relatórios financeiros/globais **sem** decorator/middleware de auth.
+- Login que não emite credencial (só devolve os dados do usuário) ou que emite token **previsível/não assinado/nunca verificado**: `'fake-jwt-token-' + id`, `base64(id)`, `token = str(uuid)` sem armazenamento.
+- Papel definido pelo cliente: `role = data.get('role', ...)`, `tipo = dados.get('tipo')`, `isAdmin` vindo do corpo no cadastro público ou no update do próprio usuário.
+- Autorização confiando em dado do cliente: `user_id`/`usuario_id` do corpo/query usado como "quem sou eu" sem conferir com o usuário autenticado.
+**Nota para a Fase 3:** AP-11 é **corrigido na Fase 3, nunca enviado para "Pending"**. Aplique o padrão concreto de T16: token assinado com expiração emitido no login (mesma chave da resposta original, ou campo novo aditivo), middleware que valida o token e recarrega o usuário do banco, papel **sempre definido pelo servidor** (cadastro público grava o papel padrão; só admin autenticado altera papel) e a matriz de acesso público / autenticado (dono ou admin) / admin. A exigência de credencial nas rotas protegidas é uma **mudança de contrato de segurança permitida** (`mvc-guidelines.md` §4): liste-a no resumo da Fase 3 e valide-a (401 sem token, 403 sem papel, mesma resposta do baseline com token). Só vai para "Pending" a escolha de infraestrutura externa (ex.: trocar por OAuth/SSO de um provedor), nunca a correção em si.
+**Correção:** T16 (seção "Autenticação e papel definido pelo servidor").
 
 ### AP-12 — Operação multi-escrita sem transação
 **O que é:** várias escritas relacionadas (pedido + itens + estoque; matrícula + pagamento + auditoria) sem atomicidade, ou "verifica-depois-debita" sem lock.

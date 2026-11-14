@@ -171,6 +171,7 @@ def user_create_payload(data):
         "name": _name(data["name"]),
         "email": _email(data["email"]),
         "password": _password(data["password"]),
+        # Só validado aqui; o controller descarta o valor quando quem chama não é admin (papel definido pelo servidor).
         "role": _role(data.get("role", DEFAULT_ROLE)),
     }
 
