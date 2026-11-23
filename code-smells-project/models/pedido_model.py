@@ -25,7 +25,7 @@ def criar_com_itens(usuario_id, itens, total, precos):
         for item in itens:
             produto_id, quantidade = item["produto_id"], item["quantidade"]
             debito = conn.execute(
-                "UPDATE produtos SET estoque = estoque - ? WHERE id = ? AND estoque >= ?",
+                "UPDATE produtos SET estoque = estoque - ? WHERE id = ? AND ativo = 1 AND estoque >= ?",
                 (quantidade, produto_id, quantidade),
             )
             if debito.rowcount == 0:

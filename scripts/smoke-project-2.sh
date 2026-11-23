@@ -16,6 +16,17 @@ check() { # check <metodo> <path> <status_esperado> [json] [token]
   else FAIL=$((FAIL+1)); echo "  FAIL $method $path -> $code (esperado $expected)"; fi
 }
 
+cors_closed() { # AP-10: sem CORS_ORIGINS, origem externa não recebe Access-Control-Allow-Origin
+  local headers; headers=$(curl -s -D - -o /dev/null -H "Origin: http://evil.example" "$BASE/")
+  if echo "$headers" | grep -qi '^access-control-allow-origin'; then FAIL=$((FAIL+1)); echo "  FAIL CORS aberto para origem externa"
+  else PASS=$((PASS+1)); echo "  OK   CORS fechado por padrão (origem externa sem Access-Control-Allow-Origin)"; fi
+}
+
+assert_contains() { # assert_contains <descricao> <texto> <trecho>
+  if echo "$2" | grep -q "$3"; then PASS=$((PASS+1)); echo "  OK   $1"
+  else FAIL=$((FAIL+1)); echo "  FAIL $1 (resposta: $2)"; fi
+}
+
 echo "Smoke test: $BASE"
 # Contrato original do payload (usr, eml, pwd, c_id, card) — deve continuar aceito após a refatoração.
 check POST   /api/checkout                200 '{"usr":"Guilherme","eml":"gui@fullcycle.com.br","pwd":"senhaforte","c_id":2,"card":"4111222233334444"}'
@@ -40,7 +51,22 @@ if echo "$REPORT" | grep -q '"revenue":997' && echo "$REPORT" | grep -q '"revenu
 else
   FAIL=$((FAIL+1)); echo "  FAIL receitas do relatório divergem"
 fi
+
+echo "Correções v1.3 (AP-10, AP-16 validação, AP-17 404, AP-20 cascata):"
+cors_closed
+check POST   /api/checkout                400 '{"usr":"Email ruim","eml":"nao-e-email","pwd":"123","c_id":2,"card":"4111222233334444"}'
+check POST   /api/checkout                400 '{"usr":"Curso ruim","eml":"z@teste.com","pwd":"123","c_id":"abc","card":"4111222233334444"}'
+check POST   /api/checkout                400 '{"usr":"Cartao ruim","eml":"w@teste.com","pwd":"123","c_id":2,"card":"4111-abc"}'
+check DELETE /api/users/abc               400 "" "$ADMIN"
+check DELETE /api/users/9999              404 "" "$ADMIN"
 check DELETE /api/users/1                 200 "" "$ADMIN"
+check DELETE /api/users/1                 404 "" "$ADMIN"
+# Usuário 1 (seed: curso 1 por 997 + checkout do curso 2 por 497) removido em cascata: sem órfãos 'Unknown'
+REPORT2=$(curl -s -H "Authorization: Bearer $ADMIN" "$BASE/api/admin/financial-report")
+echo "  relatório após exclusão: $REPORT2"
+if echo "$REPORT2" | grep -q 'Unknown'; then FAIL=$((FAIL+1)); echo "  FAIL relatório tem aluno órfão (Unknown)"
+else PASS=$((PASS+1)); echo "  OK   exclusão em cascata: relatório sem alunos órfãos"; fi
+assert_contains "receitas após a exclusão (curso 1 = 0, curso 2 = 497)" "$REPORT2" '"revenue":0,.*"revenue":497'
 
 echo "Resultado: $PASS OK, $FAIL FAIL"
 [ "$FAIL" -eq 0 ]

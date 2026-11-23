@@ -9,11 +9,15 @@ pip install -r requirements.txt
 python app.py
 ```
 
-A aplicação sobe em `http://localhost:5000`. O banco SQLite (`loja.db`) é criado automaticamente no primeiro boot, já com produtos e usuários de exemplo (senhas armazenadas com hash).
+A aplicação sobe em `http://127.0.0.1:5000` (só local; para expor na rede use `HOST=0.0.0.0`). O banco SQLite (`loja.db`) é criado automaticamente no primeiro boot, já com produtos e usuários de exemplo (senhas armazenadas com hash).
 
 ## Configuração (variáveis de ambiente)
 
-Veja `.env.example`. Principais: `SECRET_KEY` (sem ela, uma chave aleatória é gerada a cada boot), `FLASK_DEBUG=1` para modo debug (desligado por padrão), `PORT`, `DATABASE_PATH`, `CORS_ORIGINS` e `TOKEN_MAX_AGE` (validade do token de acesso, padrão 8 h).
+Veja `.env.example`. Principais: `SECRET_KEY` (sem ela, uma chave aleatória é gerada a cada boot), `FLASK_DEBUG=1` para modo debug (desligado por padrão), `HOST` (padrão `127.0.0.1`), `PORT`, `DATABASE_PATH`, `CORS_ORIGINS` e `TOKEN_MAX_AGE` (validade do token de acesso, padrão 8 h).
+
+**CORS fechado por padrão:** sem `CORS_ORIGINS`, nenhum site de outra origem consegue chamar a API pelo navegador (a resposta não traz `Access-Control-Allow-Origin`). Para liberar um front-end, defina a lista de origens: `CORS_ORIGINS=https://loja.exemplo.com,https://admin.exemplo.com`. Clientes fora do navegador (curl, apps, outros servidores) não são afetados.
+
+**Exclusão de produto:** `DELETE /produtos/<id>` faz *soft delete* (`ativo = 0`). O produto some do catálogo e não pode mais ser pedido, mas o histórico de pedidos mantém o nome dele.
 
 ## Autenticação
 

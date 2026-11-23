@@ -22,7 +22,8 @@ def create_app(config_class=Config):
     if not app.config["SECRET_KEY_FROM_ENV"]:
         app.logger.warning("SECRET_KEY não definida; usando chave aleatória (apenas desenvolvimento).")
 
-    CORS(app, origins=app.config["CORS_ORIGINS"])
+    if app.config["CORS_ORIGINS"]:  # CORS fechado se nenhuma origem for configurada
+        CORS(app, origins=app.config["CORS_ORIGINS"])
     init_db(app)
     app.extensions["notification_service"] = build_notification_service(app.config)
 

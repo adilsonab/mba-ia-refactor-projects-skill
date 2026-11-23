@@ -1,6 +1,6 @@
 """Order use cases: creation (stock + total rules), listing and status changes."""
 from config.constants import STATUS_PEDIDO_APROVADO, STATUS_PEDIDO_CANCELADO, STATUS_PEDIDO_VALIDOS
-from errors import ValidationError
+from errors import NotFoundError, ValidationError
 from models import pedido_model, produto_model
 
 
@@ -35,7 +35,8 @@ class PedidoService:
     def atualizar_status(self, pedido_id, novo_status):
         if novo_status not in STATUS_PEDIDO_VALIDOS:
             raise ValidationError("Status inválido")
-        pedido_model.atualizar_status(pedido_id, novo_status)
+        if pedido_model.atualizar_status(pedido_id, novo_status) == 0:
+            raise NotFoundError("Pedido não encontrado")  # before: 200 for a nonexistent order
         if novo_status == STATUS_PEDIDO_APROVADO:
             self.notifier.pedido_aprovado(pedido_id)
         elif novo_status == STATUS_PEDIDO_CANCELADO:

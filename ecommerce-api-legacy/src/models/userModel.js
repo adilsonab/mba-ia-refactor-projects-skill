@@ -1,5 +1,9 @@
 function createUserModel(db) {
     return {
+        findById(id) {
+            return db.get('SELECT id FROM users WHERE id = ?', [id]);
+        },
+
         findByEmail(email) {
             return db.get('SELECT id FROM users WHERE email = ?', [email]);
         },

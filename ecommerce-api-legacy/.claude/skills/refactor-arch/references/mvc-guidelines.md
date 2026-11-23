@@ -76,6 +76,9 @@ Mudanças de contrato **permitidas** (por segurança) — devem ser listadas no 
 - Trocar mensagens de erro internas (`str(e)`) por mensagens genéricas, **mantendo o status HTTP**.
 - Remover endpoints de execução arbitrária (AP-05, ex.: `/admin/query`). Endpoints destrutivos administrativos (ex.: reset) passam a exigir papel admin.
 - Transformar 500 causados por input inválido em 400.
+- Trocar um sucesso falso por erro: operação sobre recurso inexistente que respondia 200 (ex.: `PUT /pedidos/999/status`, `DELETE /users/999`) passa a responder **404**; identificador de rota com formato inválido → **400**.
+- **Defaults seguros do AP-10 (obrigatório, nunca vai para "Pending"):** debug desligado, bind em `127.0.0.1` por padrão e **CORS fechado por padrão** (sem `CORS_ORIGINS`, nenhuma origem externa recebe `Access-Control-Allow-Origin`). O comportamento antigo continua disponível só por configuração explícita (`HOST=0.0.0.0`, `CORS_ORIGINS=https://app.exemplo.com` ou `*`).
+- Corrigir integridade referencial (AP-20) com soft delete ou cascata transacional; se o texto de uma resposta descrevia o próprio defeito (ex.: "...as matrículas ficaram sujas no banco"), ajuste o texto mantendo status e formato (texto/JSON).
 - **Corrigir AP-11 (obrigatório, nunca vai para "Pending")** com o padrão de T16:
   - Login passa a emitir **token assinado com expiração** (mesma chave da resposta original, ex.: `token`; se o login não tinha token, adicione o campo `token` dentro do envelope existente — mudança aditiva).
   - Rotas protegidas exigem `Authorization: Bearer <token>`: sem token/token inválido → **401**; autenticado sem permissão → **403**. Com token válido e permitido, a resposta é **idêntica ao baseline**.
@@ -92,15 +95,18 @@ Mudanças de contrato **permitidas** (por segurança) — devem ser listadas no 
 
 Registre a matriz no resumo da Fase 3 (seção "Findings Addressed", item do AP-11) e documente o uso do token no README do projeto.
 
-Mudanças que **NÃO** devem ser aplicadas automaticamente (listar em "Pending (requires human decision)"):
-- Alterar regras de negócio (valores de desconto, regra de aprovação de pagamento), apenas extraí-las para constantes/serviços.
+Mudanças que **NÃO** devem ser aplicadas automaticamente (listar em "Pending (requires human decision)" **e** já declarar como `Pending: <motivo>` na Recommendation do finding na Fase 2 — nunca para CRITICAL/HIGH):
+- Alterar regras de negócio (valores de desconto, regra de aprovação de pagamento, criar um efeito que o código original nunca executou, como devolver estoque ao cancelar ou enviar e-mail num evento), apenas extraí-las para constantes/serviços.
+- Mudar o formato do corpo de erro que clientes já consomem (ex.: texto puro → JSON).
 - Trocar o banco de dados ou major version de framework.
 - Trocar o mecanismo de autenticação por um provedor externo (OAuth/SSO) — a correção do AP-11 com token assinado **é** aplicada; só a troca de infraestrutura é decisão humana.
 
 ## 5. Convenções de qualidade no código refatorado
 
 - Segredos só via ambiente: `os.environ.get("SECRET_KEY")` / `process.env.SECRET_KEY`. Default de desenvolvimento **não** pode ser um segredo fixo de aparência real: gere um aleatório em runtime (`secrets.token_hex(32)` / `crypto.randomBytes(32)`) e registre um aviso.
-- `debug` desligado por padrão (`FLASK_DEBUG`/`APP_DEBUG=1` para ligar). Host padrão pode permanecer o original para não quebrar o contrato de acesso, mas debug nunca ligado por padrão.
+- `debug` desligado por padrão (`FLASK_DEBUG`/`APP_DEBUG=1` para ligar); `HOST` padrão `127.0.0.1` (a porta original é mantida; expor na rede é `HOST=0.0.0.0` explícito).
+- CORS fechado por padrão: `CORS_ORIGINS` vazio → a extensão de CORS não é registrada (ou recebe lista vazia); lista separada por vírgula → só essas origens; `*` apenas se definido explicitamente. Nunca use `"*"` como default "para preservar o comportamento".
+- Dependências sem vulnerabilidades conhecidas (`pip-audit`/`npm audit`): atualize para a versão corrigida dentro da mesma major; use `overrides`/pin de transitiva quando o pacote pai trava a versão; só major version de **framework** vai para "Pending".
 - Queries 100% parametrizadas.
 - Senhas com hash forte (werkzeug `generate_password_hash`/`scrypt` do Node) e migração transparente de hashes legados (ver T03).
 - Nenhuma rota administrativa ou de dados de outro usuário sem o middleware de auth; nenhum papel lido do corpo da requisição pública; tokens assinados com o `SECRET_KEY` da config (T02) e com expiração.
@@ -121,6 +127,7 @@ Execute **antes** (baseline, código original) e **depois** (código refatorado)
    - Aguarde a porta responder (loop curto com `curl`, até ~10s). Se não subir, leia o log.
 3. **Requisições:** para cada endpoint do inventário, execute as mesmas chamadas (válidas e inválidas) com `curl -s -o <tmp>/<n>.json -w "%{http_code}"`, **na mesma ordem** (a ordem importa quando há escrita). Inclua no mínimo: listagem, busca por id existente e inexistente, criação válida e inválida, atualização, exclusão, login correto e incorreto, relatórios.
    - **Depois da correção do AP-11:** faça login primeiro (usuário admin do seed e um usuário comum) e envie `Authorization: Bearer <token>` nas rotas protegidas, repetindo as mesmas requisições do baseline. Acrescente as checagens negativas: rota protegida sem token → 401, token adulterado → 401, usuário comum em rota admin → 403, usuário comum acessando recurso de outro usuário → 403, cadastro público com `role`/`tipo` = admin → criado com o papel padrão.
+   - **Defaults seguros (AP-10), com o app subido sem variáveis de ambiente:** `curl -s -D - -o /dev/null -H "Origin: http://evil.example" <BASE>/` não pode conter `Access-Control-Allow-Origin`; o log/boot mostra debug desligado e bind `127.0.0.1`.
 4. **Comparação:** para cada requisição, status HTTP igual ao baseline e mesmas chaves de primeiro nível no JSON (exceto remoções de segurança documentadas). Valores voláteis (timestamps, ids gerados, tokens) não precisam coincidir.
 5. **Log:** o log do servidor não deve conter tracebacks nem warnings de deprecated originados no código do projeto.
 6. **Encerramento:** derrube **todos** os processos iniciados (o reloader do modo debug cria processo filho):

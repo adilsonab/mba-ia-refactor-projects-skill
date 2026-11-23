@@ -2,6 +2,7 @@ import re
 from datetime import datetime, timezone
 
 EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$")
+HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 def utcnow():
@@ -17,3 +18,8 @@ def calculate_percentage(part, total):
 
 def validate_email(email):
     return isinstance(email, str) and EMAIL_PATTERN.match(email) is not None
+
+
+def is_valid_color(color):
+    """Cor no formato #RRGGBB (o helper original só checava tamanho 7 e o '#')."""
+    return isinstance(color, str) and HEX_COLOR_PATTERN.match(color) is not None

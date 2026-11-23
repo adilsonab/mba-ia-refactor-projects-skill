@@ -19,7 +19,7 @@ from config.constants import (
     USER_ROLES,
 )
 from middlewares.error_handler import ValidationError
-from utils.helpers import validate_email
+from utils.helpers import is_valid_color, validate_email
 
 PRIORITY_ERROR = f"Prioridade deve ser entre {MIN_PRIORITY} e {MAX_PRIORITY}"
 DATE_ERROR = "Formato de data inválido. Use YYYY-MM-DD"
@@ -201,13 +201,19 @@ def login_payload(data):
 
 
 # ---- categorias ------------------------------------------------------------
+def _color(value):
+    if not is_valid_color(value):
+        raise ValidationError("Cor inválida. Use o formato #RRGGBB")
+    return value
+
+
 def category_create_payload(data):
     if not data.get("name"):
         raise ValidationError("Nome é obrigatório")
     return {
         "name": _name(data["name"]),
         "description": _optional_text(data.get("description", ""), "Descrição inválida"),
-        "color": _optional_text(data.get("color", DEFAULT_CATEGORY_COLOR), "Cor inválida"),
+        "color": _color(data.get("color", DEFAULT_CATEGORY_COLOR)),
     }
 
 
@@ -218,5 +224,5 @@ def category_update_payload(data):
     if "description" in data:
         changes["description"] = _optional_text(data["description"], "Descrição inválida")
     if "color" in data:
-        changes["color"] = _optional_text(data["color"], "Cor inválida")
+        changes["color"] = _color(data["color"])
     return changes

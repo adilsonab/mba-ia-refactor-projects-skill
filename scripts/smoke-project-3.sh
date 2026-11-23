@@ -25,6 +25,12 @@ login() { # login <email> <senha> -> imprime o token
     | sed -n 's/.*"token": *"\([^"]*\)".*/\1/p'
 }
 
+cors_closed() { # AP-10: sem CORS_ORIGINS, origem externa não recebe Access-Control-Allow-Origin
+  local headers; headers=$(curl -s -D - -o /dev/null -H "Origin: http://evil.example" "$BASE/")
+  if echo "$headers" | grep -qi '^access-control-allow-origin'; then FAIL=$((FAIL+1)); echo "  FAIL CORS aberto para origem externa"
+  else PASS=$((PASS+1)); echo "  OK   CORS fechado por padrão (origem externa sem Access-Control-Allow-Origin)"; fi
+}
+
 echo "Smoke test: $BASE"
 ADMIN=$(login joao@email.com 1234)    # seed: role admin
 USER=$(login maria@email.com abcd)    # seed: role user (id 2)
@@ -93,6 +99,15 @@ check GET    /users                     403 "" "$MALLORY"
 CREATED=$(curl -s -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $ADMIN" \
   -d '{"name":"Gerente","email":"gerente@email.com","password":"segredo123","role":"manager"}' "$BASE/users")
 assert_contains "admin autenticado define role=manager" "$CREATED" '"role": *"manager"'
+
+
+echo "Correções v1.3 (AP-10 defaults seguros, AP-03 senha mínima, AP-16 cor #RRGGBB):"
+cors_closed
+check POST   /users                     400 '{"name":"Curta","email":"curta@email.com","password":"1234"}'
+check POST   /categories                400 '{"name":"Cor ruim","color":"azul"}' "$ADMIN"
+check PUT    /categories/1              400 '{"color":"#12345"}' "$ADMIN"
+check PUT    /categories/1              200 '{"color":"#ABCDEF"}' "$ADMIN"
+check POST   /categories                201 '{"name":"Sem cor"}' "$ADMIN"
 
 echo "Resultado: $PASS OK, $FAIL FAIL"
 [ "$FAIL" -eq 0 ]

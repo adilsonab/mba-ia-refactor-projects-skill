@@ -1,6 +1,7 @@
 function createReportModel(db) {
     return {
-        // Uma única query (antes: 1 + C + 2·E queries). Mantém matrículas órfãas (aluno removido).
+        // Uma única query (antes: 1 + C + 2·E queries). O LEFT JOIN em users mantém o fallback 'Unknown'
+        // para dados legados; a exclusão de usuário agora remove matrículas e pagamentos (AP-20).
         listCourseEnrollmentPayments() {
             return db.all(`
                 SELECT c.id AS course_id, c.title, e.id AS enrollment_id,

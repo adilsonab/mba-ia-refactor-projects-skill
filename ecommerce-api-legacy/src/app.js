@@ -33,7 +33,7 @@ function createApp(db) {
         db, userModel, courseModel, enrollmentModel, paymentModel, auditLogModel, paymentGateway,
     });
     const reportService = createReportService({ reportModel });
-    const userService = createUserService({ db, userModel });
+    const userService = createUserService({ db, userModel, enrollmentModel, paymentModel });
 
     const app = express();
     app.use(express.json());
@@ -50,8 +50,8 @@ function createApp(db) {
 async function main() {
     const db = await createDatabase(config.databasePath);
     const app = createApp(db);
-    app.listen(config.port, () => {
-        logger.info(`Frankenstein LMS rodando na porta ${config.port}...`);
+    app.listen(config.port, config.host, () => {
+        logger.info(`Frankenstein LMS rodando em http://${config.host}:${config.port}...`);
     });
 }
 

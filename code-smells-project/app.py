@@ -25,7 +25,8 @@ def create_app(config_class=Config):
     if not app.config["SECRET_KEY_FROM_ENV"]:
         logger.warning("SECRET_KEY não definida; usando chave aleatória (apenas desenvolvimento).")
 
-    CORS(app, origins=app.config["CORS_ORIGINS"])
+    if app.config["CORS_ORIGINS"]:  # CORS closed unless an allowlist is configured
+        CORS(app, origins=app.config["CORS_ORIGINS"])
 
     app.teardown_appcontext(close_db)
     with app.app_context():

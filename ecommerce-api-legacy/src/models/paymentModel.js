@@ -5,6 +5,12 @@ function createPaymentModel(db) {
                 [enrollmentId, amount, status]);
             return lastID;
         },
+
+        deleteByUser(userId) {
+            return db.run(
+                'DELETE FROM payments WHERE enrollment_id IN (SELECT id FROM enrollments WHERE user_id = ?)', [userId],
+            );
+        },
     };
 }
 

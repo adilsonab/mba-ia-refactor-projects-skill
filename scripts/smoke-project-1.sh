@@ -25,6 +25,12 @@ login() { # login <email> <senha> -> imprime o token
     | sed -n 's/.*"token": *"\([^"]*\)".*/\1/p'
 }
 
+cors_closed() { # AP-10: sem CORS_ORIGINS, origem externa não recebe Access-Control-Allow-Origin
+  local headers; headers=$(curl -s -D - -o /dev/null -H "Origin: http://evil.example" "$BASE/")
+  if echo "$headers" | grep -qi '^access-control-allow-origin'; then FAIL=$((FAIL+1)); echo "  FAIL CORS aberto para origem externa"
+  else PASS=$((PASS+1)); echo "  OK   CORS fechado por padrão (origem externa sem Access-Control-Allow-Origin)"; fi
+}
+
 echo "Smoke test: $BASE"
 ADMIN=$(login admin@loja.com admin123)   # seed: tipo admin (id 1)
 JOAO=$(login joao@email.com 123456)      # seed: tipo cliente (id 2)
@@ -76,6 +82,16 @@ MALLORY_LOGIN=$(curl -s -X POST -H "Content-Type: application/json" -d '{"email"
 assert_contains "cadastro público com tipo=admin vira tipo=cliente" "$MALLORY_LOGIN" '"tipo": *"cliente"'
 MALLORY=$(echo "$MALLORY_LOGIN" | sed -n 's/.*"token": *"\([^"]*\)".*/\1/p')
 check GET    /usuarios                 403 "" "$MALLORY"
+echo "Correções v1.3 (AP-10 defaults seguros, AP-16 404, AP-20 soft delete):"
+cors_closed
+check PUT    /pedidos/9999/status      404 '{"status":"aprovado"}' "$ADMIN"
+check POST   /pedidos                  201 '{"usuario_id":2,"itens":[{"produto_id":3,"quantidade":1}]}' "$JOAO"
+check DELETE /produtos/3               200 "" "$ADMIN"
+check GET    /produtos/3               404
+check DELETE /produtos/3               404 "" "$ADMIN"
+check POST   /pedidos                  400 '{"usuario_id":2,"itens":[{"produto_id":3,"quantidade":1}]}' "$JOAO"
+HIST=$(curl -s -H "Authorization: Bearer $JOAO" "$BASE/pedidos/usuario/2")
+assert_contains "histórico do pedido mantém o nome do produto excluído" "$HIST" 'Teclado Mec'
 # Operação destrutiva por último: admin autenticado pode resetar
 check POST   /admin/reset-db           200 "" "$ADMIN"
 

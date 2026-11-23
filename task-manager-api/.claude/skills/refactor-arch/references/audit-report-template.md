@@ -8,7 +8,7 @@ Gere o relatório **exatamente** com a estrutura abaixo (Markdown). Substitua os
 2. **Localização exata:** `File:` sempre no formato `caminho/relativo.ext:linha` ou `caminho/relativo.ext:inicio-fim`. Múltiplas ocorrências: separe por vírgula; se forem muitas (> 8), liste as 8 mais relevantes e acrescente "(+N ocorrências: ...)" com as linhas restantes.
 3. **Descrição concreta:** cite o trecho ou o valor problemático (ex.: "`SECRET_KEY` = `'minha-chave-...'`"). Nada genérico como "código ruim".
 4. **Impact:** consequência real para segurança, manutenção, testes ou performance.
-5. **Recommendation:** ação concreta + referência à transformação do playbook (`→ T0X`).
+5. **Recommendation:** ação concreta + referência à transformação do playbook (`→ T0X`). É o que a Fase 3 **vai entregar** (regra 9 do `SKILL.md`): cite os valores e defaults que serão aplicados e cubra cada problema citado em Description/Impact. Parte que depende de decisão humana (só MEDIUM/LOW) termina com `Pending: <motivo>`; CRITICAL e HIGH não têm parte pendente.
 6. **Contagem:** o `Summary` e o `Total` devem bater com o número de findings listados.
 7. Numere os findings sequencialmente (`#1`, `#2`, ...) para que possam ser referenciados na Fase 3.
 

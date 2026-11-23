@@ -129,7 +129,8 @@ Cada entrada tem: **severidade padrão**, **o que é**, **sinais de detecção**
 
 ### AP-10 — Configuração insegura
 **O que é:** modo debug/flags de desenvolvimento fixos no código e expostos.
-**Sinais de detecção:** `debug=True`, `app.config["DEBUG"] = True`, `app.run(host="0.0.0.0", debug=True)`, `CORS(app)` / `cors()` sem restrição de origem, URIs/portas fixas sem leitura de ambiente, ausência de app factory (`create_app`).
+**Sinais de detecção:** `debug=True`, `app.config["DEBUG"] = True`, `app.run(host="0.0.0.0", debug=True)`, `CORS(app)` / `cors()` sem restrição de origem, URIs/portas fixas sem leitura de ambiente, ausência de app factory (`create_app`). Também conta como AP-10 um módulo de config que **lê** do ambiente mas usa um default inseguro (`CORS_ORIGINS` padrão `"*"`, `DEBUG` padrão ligado, `HOST` padrão `0.0.0.0`).
+**Nota para a Fase 3:** AP-10 é **corrigido com defaults seguros, nunca enviado para "Pending"** e nunca "preservado por compatibilidade". Sem nenhuma variável de ambiente, a aplicação sobe com: debug desligado; `HOST=127.0.0.1` (expor na rede exige `HOST=0.0.0.0` explícito); **CORS fechado** (`CORS_ORIGINS` vazio = nenhuma origem externa recebe `Access-Control-Allow-Origin`; uma lista separada por vírgula libera só essas origens; `*` só se o operador definir explicitamente); segredo aleatório com aviso quando `SECRET_KEY` falta. A Recommendation do finding deve citar esses defaults, e a Fase 3 os valida (ver `SKILL.md`). Clientes não-browser (curl, apps, outros servidores) não são afetados por CORS; a restrição é **mudança de contrato de segurança permitida** (`mvc-guidelines.md` §4) e é listada no resumo.
 **Correção:** T02 + T17.
 
 ### AP-11 — Autenticação/autorização ausente ou falsa
@@ -205,7 +206,8 @@ Cada entrada tem: **severidade padrão**, **o que é**, **sinais de detecção**
 ### AP-20 — Integridade referencial manual / registros órfãos
 **O que é:** exclusões que deixam filhos órfãos ou cascata feita à mão na rota.
 **Sinais de detecção:** `DELETE FROM pai` sem tratar tabelas filhas; loop `for t in filhos: delete(t)` na rota; FKs sem `ON DELETE`/`cascade`; SQLite sem `PRAGMA foreign_keys = ON`.
-**Correção:** T09 (exclusão transacional) / cascade no model.
+**Escolha da correção (decida na Fase 2 e escreva na Recommendation):** se o filho é **histórico** que precisa sobreviver (itens de pedido apontando para um produto), use **soft delete** do pai (coluna `ativo`/`active` já existente ou nova, leituras filtram os ativos); se o filho **pertence** ao pai (matrículas e pagamentos de um usuário, tasks de um usuário), faça **exclusão em cascata na mesma transação**. Em ambos os casos a Fase 3 aplica a correção — não deixe órfãos "para decisão humana".
+**Correção:** T09 (exclusão transacional / soft delete) / cascade no model.
 
 ---
 

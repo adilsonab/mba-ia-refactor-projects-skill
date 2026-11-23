@@ -1,4 +1,4 @@
-$ ADMIN_TOKEN=<aleatório> node --trace-deprecation src/app.js   (log do servidor ao final)
+$ ADMIN_TOKEN=<aleatório> node --trace-deprecation src/app.js   (sem outras variáveis; log do servidor ao final)
 Smoke test: http://localhost:3000
   OK   POST /api/checkout -> 200
   OK   POST /api/checkout -> 200
@@ -14,12 +14,27 @@ Autorização (AP-11):
   OK   GET /api/admin/financial-report -> 200
   relatório: [{"course":"Clean Architecture","revenue":997,"students":[{"student":"Leonan","paid":997}]},{"course":"Docker","revenue":994,"students":[{"student":"Guilherme","paid":497},{"student":"Leonan","paid":497}]}]
   OK   receitas do relatório conferem
+Correções v1.3 (AP-10, AP-16 validação, AP-17 404, AP-20 cascata):
+  OK   CORS fechado por padrão (origem externa sem Access-Control-Allow-Origin)
+  OK   POST /api/checkout -> 400
+  OK   POST /api/checkout -> 400
+  OK   POST /api/checkout -> 400
+  OK   DELETE /api/users/abc -> 400
+  OK   DELETE /api/users/9999 -> 404
   OK   DELETE /api/users/1 -> 200
-Resultado: 13 OK, 0 FAIL
+  OK   DELETE /api/users/1 -> 404
+  relatório após exclusão: [{"course":"Clean Architecture","revenue":0,"students":[]},{"course":"Docker","revenue":497,"students":[{"student":"Guilherme","paid":497}]}]
+  OK   exclusão em cascata: relatório sem alunos órfãos
+  OK   receitas após a exclusão (curso 1 = 0, curso 2 = 497)
+Resultado: 22 OK, 0 FAIL
 
 --- log do servidor ---
 [WARN] PAYMENT_GATEWAY_KEY não definida; gateway de pagamento roda em modo simulado (apenas desenvolvimento).
-[INFO] Frankenstein LMS rodando na porta 3000...
+[INFO] Frankenstein LMS rodando em http://127.0.0.1:3000...
 [INFO] Processando pagamento de 497 com cartão final 4444 (gateway simulado)
 [INFO] Processando pagamento de 497 com cartão final 4444 (gateway simulado)
 [INFO] Processando pagamento de 997 com cartão final 4444 (gateway simulado)
+
+--- auditoria de dependências ---
+$ npm audit --omit=dev
+found 0 vulnerabilities

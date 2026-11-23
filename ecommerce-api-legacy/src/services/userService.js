@@ -1,9 +1,16 @@
-function createUserService({ db, userModel }) {
+const { NotFoundError } = require('../middlewares/errorHandler');
+
+function createUserService({ db, userModel, enrollmentModel, paymentModel }) {
     return {
-        // Comportamento preservado: matrículas e pagamentos do usuário NÃO são removidos
-        // (ver pendência AP-20 no relatório de auditoria).
+        // Cascata transacional (AP-20): pagamentos → matrículas → usuário. Nada fica órfão
+        // e, se qualquer passo falhar, nada é removido.
         deleteUser(id) {
-            return db.transaction(() => userModel.deleteById(id));
+            return db.transaction(async () => {
+                if (!(await userModel.findById(id))) throw new NotFoundError('Usuário não encontrado');
+                await paymentModel.deleteByUser(id);
+                await enrollmentModel.deleteByUser(id);
+                await userModel.deleteById(id);
+            });
         },
     };
 }

@@ -12,7 +12,11 @@ python app.py
 
 ## Configuração
 
-Toda a configuração vem de variáveis de ambiente (ou de um arquivo `.env`; veja `.env.example`): `SECRET_KEY`, `TOKEN_MAX_AGE` (validade do token, padrão 8 h), `DATABASE_URL`, `FLASK_DEBUG` (desligado por padrão), `HOST`, `PORT`, `CORS_ORIGINS`, `LOG_LEVEL` e `SMTP_*`.
+Toda a configuração vem de variáveis de ambiente (ou de um arquivo `.env`; veja `.env.example`): `SECRET_KEY`, `TOKEN_MAX_AGE` (validade do token, padrão 8 h), `DATABASE_URL`, `FLASK_DEBUG` (desligado por padrão), `HOST` (padrão `127.0.0.1`; use `0.0.0.0` para expor na rede), `PORT`, `CORS_ORIGINS`, `LOG_LEVEL` e `SMTP_*`.
+
+**CORS fechado por padrão:** sem `CORS_ORIGINS`, nenhum site de outra origem consegue chamar a API pelo navegador (a resposta não traz `Access-Control-Allow-Origin`). Para liberar um front-end: `CORS_ORIGINS=https://app.exemplo.com`. Clientes fora do navegador (curl, apps, outros servidores) não são afetados.
+
+Regras de entrada: senha com no mínimo 8 caracteres em novos cadastros e trocas de senha; `color` de categoria no formato `#RRGGBB`.
 
 ## Autenticação
 
@@ -27,7 +31,7 @@ Toda a configuração vem de variáveis de ambiente (ou de um arquivo `.env`; ve
 | Autenticado (dono ou admin) | `GET /users/<id>`, `PUT /users/<id>`, `GET /users/<id>/tasks`, `GET /reports/user/<id>` |
 | Admin | `GET /users`, `DELETE /users/<id>`, `GET /reports/summary`, `POST/PUT/DELETE /categories` |
 
-Sem token ou com token inválido/expirado → `401`; sem permissão → `403`. Admin de desenvolvimento do seed: `joao@email.com` / `1234`.
+Sem token ou com token inválido/expirado → `401`; sem permissão → `403`. Admin de desenvolvimento do seed: `joao@email.com` / `1234` (senhas do seed são fracas de propósito e servem só para desenvolvimento; elas são gravadas com hash).
 
 ```bash
 TOKEN=$(curl -s -X POST localhost:5000/login -H "Content-Type: application/json" \
@@ -39,4 +43,4 @@ curl -H "Authorization: Bearer $TOKEN" localhost:5000/users
 
 `app.py` (composition root, `create_app`) → `routes/` (blueprints) → `controllers/` (fluxo HTTP + validação) → `services/` (regras de negócio) → `models/` (entidades + consultas). Serialização em `views/`, erros centralizados em `middlewares/error_handler.py`, autenticação/autorização em `middlewares/auth.py` + `services/auth_service.py`, configuração em `config/`.
 
-A aplicação sobe em `http://localhost:5000`. O `seed.py` popula o banco SQLite (`tasks.db`) com usuários, categorias e tasks de exemplo — **rode-o antes do primeiro boot**, caso contrário os endpoints vão retornar listas vazias.
+A aplicação sobe em `http://127.0.0.1:5000`. O `seed.py` popula o banco SQLite (`tasks.db`) com usuários, categorias e tasks de exemplo — **rode-o antes do primeiro boot**, caso contrário os endpoints vão retornar listas vazias.

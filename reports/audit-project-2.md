@@ -4,7 +4,7 @@ ARCHITECTURE AUDIT REPORT
 Project: ecommerce-api-legacy
 Stack:   JavaScript (Node.js v20.19.5, versão não declarada) + Express ^4.18.2 (resolvido 4.22.1)
 Files:   3 analyzed | ~180 lines of code
-Date:    2026-11-05
+Date:    2026-11-23 (revisado; primeira execução 2026-11-05)
 
 ## Summary
 CRITICAL: 4 | HIGH: 7 | MEDIUM: 5 | LOW: 6
@@ -100,7 +100,7 @@ Recommendation: Promisificar o driver (`util.promisify`) e reescrever com `async
 File: src/AppManager.js:29-35, src/AppManager.js:46, src/AppManager.js:132
 Description: O checkout só verifica presença (`if (!u || !e || !cid || !cc)`); não valida tipos nem formato (e-mail, `c_id` numérico, `card` string). Com `card` numérico, `cc.startsWith("4")` lança `TypeError` dentro de um callback do sqlite. **Confirmado em runtime:** `POST /api/checkout` com `"card": 4111222233334444` derrubou o processo (`TypeError: cc.startsWith is not a function`, AppManager.js:46) — e o usuário já havia sido criado. `:id` do DELETE não é validado.
 Impact: Uma única requisição anônima derruba a API inteira (DoS trivial) — por isso a severidade sobe um nível conforme a regra de calibração.
-Recommendation: Validar tipos/formato no controller e retornar 400 antes de chamar o service; tratar exceções assíncronas via middleware (→ T12 + T08).
+Recommendation: Validar no controller, antes de chamar o service, e responder 400 (`"Bad Request"`, mesmo texto e status do original): `usr` string não vazia; `eml` com formato de e-mail; `c_id` inteiro positivo (aceita `2` ou `"2"`, como o original); `card` string só com dígitos (12 a 19); `pwd` string quando enviada. `:id` do `DELETE /api/users/:id` também precisa ser inteiro positivo (400). Exceções assíncronas chegam ao middleware de erro via `asyncHandler`, então nenhuma requisição derruba o processo (→ T12 + T08).
 
 ### #12 [MEDIUM] AP-14 — Query N+1
 File: src/AppManager.js:89-92, src/AppManager.js:102-106
@@ -112,13 +112,13 @@ Recommendation: Uma única query com `LEFT JOIN` entre `courses`, `enrollments`,
 File: src/AppManager.js:57, src/AppManager.js:92-93, src/AppManager.js:104, src/AppManager.js:106, src/AppManager.js:133-135, src/app.js:1-14
 Description: Callbacks ignoram `err`: a auditoria (57) responde sucesso mesmo com erro; em 92 `enrollments.length` é lido sem checar `err` (crash se a query falhar); 104/106 ignoram erros; o DELETE (133-135) responde "Usuário deletado" mesmo com erro ou id inexistente. Não há middleware de erro `(err, req, res, next)` em `app.js`.
 Impact: Falhas silenciosas, respostas enganosas e exceções não tratadas que derrubam o processo.
-Recommendation: Centralizar em um middleware de erro e propagar erros com `async/await` + `next(err)` (→ T08).
+Recommendation: Centralizar em um middleware de erro e propagar erros com `async/await` + `next(err)`; nenhum callback ignora `err`. O `DELETE /api/users/:id` passa a conferir se o usuário existe: id inexistente → 404 `"Usuário não encontrado"` em vez do 200 falso (→ T08).
 
 ### #14 [MEDIUM] AP-18 — APIs legadas e dependências vulneráveis
 File: package.json:10-11, src/AppManager.js:11-133
 Description: `npm audit --omit=dev` reporta 13 vulnerabilidades (2 critical, 8 high, 1 moderate, 2 low): `sqlite3@5.1.7` (direta, high, via `tar`/`node-gyp`/`cacache` — correção em `sqlite3@6.0.1`, major) e transitivas do Express (`body-parser`, `path-to-regexp`, `qs`, `proxy-addr`, `brace-expansion`, `ip-address`) corrigíveis com `npm audit fix`. O código usa exclusivamente a API de callbacks aninhados do sqlite3 (padrão legado). `node --trace-deprecation src/app.js` não emitiu nenhum DeprecationWarning.
 Impact: Exposição a CVEs conhecidos (DoS em `qs`/`path-to-regexp`, path traversal em `tar` na instalação).
-Recommendation: Rodar `npm audit fix` (sem quebra) e avaliar o upgrade de `sqlite3` para 6.x; substituir callbacks por Promises/`async-await` (→ T11).
+Recommendation: Atualizar `sqlite3` para `^6.0.1` (a API de callbacks usada pelo wrapper é a mesma; validar boot e endpoints), `express` para `^4.22.1` e fixar a transitiva `qs` em `^6.17.1` via `overrides` (o Express 4 trava `qs ~6.14`); repetir `npm audit --omit=dev` até 0 vulnerabilidades. Substituir callbacks por Promises/`async-await` com um wrapper único em `src/database` (→ T11).
 
 ### #15 [MEDIUM] AP-19 — Agregação ineficiente
 File: src/AppManager.js:83-123
@@ -130,7 +130,7 @@ Recommendation: Calcular a receita no SQL (`SUM(CASE WHEN p.status='PAID' THEN p
 File: src/AppManager.js:131-136, src/AppManager.js:12-15
 Description: `DELETE FROM users WHERE id = ?` não remove `enrollments`/`payments`; a própria resposta admite: "Usuário deletado, mas as matrículas e pagamentos ficaram sujos no banco." O schema não declara `FOREIGN KEY` nem `ON DELETE` e não ativa `PRAGMA foreign_keys`.
 Impact: Dados órfãos; o relatório financeiro passa a exibir alunos `'Unknown'` com pagamentos de usuários removidos.
-Recommendation: Exclusão transacional de matrículas/pagamentos do usuário (ou FKs com `ON DELETE CASCADE` + `PRAGMA foreign_keys = ON`). Mudar o texto da resposta altera o contrato → decisão humana (→ T09).
+Recommendation: Exclusão em cascata na mesma transação, aplicada na Fase 3: `userService.deleteUser` remove pagamentos → matrículas → usuário (rollback se qualquer passo falhar), e o relatório deixa de exibir alunos `Unknown`. O texto da resposta, que descrevia o próprio defeito ("...ficaram sujos no banco"), passa a "Usuário deletado, junto com suas matrículas e pagamentos." mantendo status 200 e corpo em texto (mudança de contrato listada no resumo) (→ T09).
 
 ### #17 [LOW] AP-21 — Magic numbers e strings
 File: src/AppManager.js:46, src/AppManager.js:68, src/AppManager.js:108, src/utils.js:6, src/utils.js:19
@@ -166,7 +166,7 @@ Recommendation: `async/await` com `Promise.all` ou query única elimina os conta
 File: src/AppManager.js:35, src/AppManager.js:38, src/AppManager.js:41, src/AppManager.js:48, src/AppManager.js:51, src/AppManager.js:55, src/AppManager.js:70, src/AppManager.js:84 (+1 ocorrência: 135)
 Description: Erros são texto puro (`res.status(400).send("Bad Request")`, `"Curso não encontrado"`, `"Erro DB"`) enquanto sucessos são JSON (`{ msg: "Sucesso", enrollment_id }`); o DELETE responde texto.
 Impact: Clientes precisam tratar dois formatos.
-Recommendation: Manter os status HTTP e os corpos de sucesso; padronizar erros só se não quebrar clientes — mudar o corpo de erro é decisão humana (→ T08).
+Recommendation: Manter os status HTTP e os corpos de sucesso; centralizar a emissão dos erros no middleware (um só lugar define o formato), preservando o texto puro atual (→ T08). Pending: trocar o corpo de erro de texto para JSON quebra clientes que já leem o texto — decisão humana.
 
 ## Deprecated APIs
 | API | Location | Modern replacement | Evidence |
@@ -180,7 +180,7 @@ Nenhuma API marcada como deprecated pelo Node.js/Express foi detectada em runtim
 ## Architecture Notes
 - Current architecture: Monolítica — `AppManager.js` cria o banco em memória, faz schema+seed, registra as 3 rotas, processa pagamento e monta o relatório; `utils.js` mistura config com segredos, cache global e "hash" de senha.
 - Refactoring strategy: monolith decomposition — não existem camadas a reaproveitar; decompor em config / database / models / services / controllers / routes / middlewares com `app.js` como composition root (`npm start` → `node src/app.js` deve continuar funcionando).
-- Contract constraints: `POST /api/checkout` com campos `usr`, `eml`, `pwd`, `c_id`, `card`; sucesso `200 {"msg":"Sucesso","enrollment_id":N}`; erros em texto com status 400 ("Bad Request", "Pagamento recusado"), 404 ("Curso não encontrado") e 500; `GET /api/admin/financial-report` → array `[{course, revenue, students:[{student, paid}]}]`; `DELETE /api/users/:id` → texto 200; porta 3000; seed automático no boot (banco em memória).
+- Contract constraints: `POST /api/checkout` com campos `usr`, `eml`, `pwd`, `c_id`, `card`; sucesso `200 {"msg":"Sucesso","enrollment_id":N}`; erros em texto com status 400 ("Bad Request", "Pagamento recusado"), 404 ("Curso não encontrado") e 500; `GET /api/admin/financial-report` → array `[{course, revenue, students:[{student, paid}]}]`; `DELETE /api/users/:id` → texto 200; porta 3000; seed automático no boot (banco em memória). Mudanças intencionais de segurança: `ADMIN_TOKEN` nas rotas admin (#8), bind padrão `127.0.0.1` (AP-10; o projeto não usa CORS, que continua fechado), 400/404 no `DELETE` com id inválido/inexistente (#11, #13) e texto do `DELETE` após a cascata (#16).
 
 ================================
 Total: 22 findings

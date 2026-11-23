@@ -9,13 +9,13 @@ npm install
 npm start
 ```
 
-A aplicação sobe em `http://localhost:3000`. O banco SQLite é em memória e já carrega seeds automaticamente no boot.
+A aplicação sobe em `http://127.0.0.1:3000` (só local; para expor na rede use `HOST=0.0.0.0`). O banco SQLite é em memória e já carrega seeds automaticamente no boot.
 
 Exemplos de requisições estão em `api.http`.
 
 ## Configuração
 
-Variáveis de ambiente opcionais (ver `.env.example`): `PORT` (padrão `3000`), `DATABASE_PATH` (padrão `:memory:`), `PAYMENT_GATEWAY_KEY` (sem valor padrão; o gateway roda em modo simulado) e `ADMIN_TOKEN`.
+Variáveis de ambiente opcionais (ver `.env.example`): `PORT` (padrão `3000`), `HOST` (padrão `127.0.0.1`), `DATABASE_PATH` (padrão `:memory:`), `PAYMENT_GATEWAY_KEY` (sem valor padrão; o gateway roda em modo simulado) e `ADMIN_TOKEN`.
 
 ## Autenticação
 
@@ -30,6 +30,8 @@ O projeto não tem login nem papéis de usuário, então a credencial de adminis
 ADMIN_TOKEN=$(node -e "console.log(require('crypto').randomBytes(24).toString('hex'))") npm start
 curl -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:3000/api/admin/financial-report
 ```
+
+`DELETE /api/users/:id` remove o usuário **junto com suas matrículas e pagamentos**, na mesma transação. Id inválido → `400`; usuário inexistente → `404`.
 
 ## Estrutura
 

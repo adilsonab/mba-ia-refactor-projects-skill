@@ -30,11 +30,12 @@ Os caminhos são relativos ao diretório desta skill (`.claude/skills/refactor-a
 1. **Nenhum arquivo do projeto é criado, alterado ou removido antes da confirmação explícita do usuário ao final da Fase 2.** A única escrita permitida antes disso é o relatório no caminho passado em `$ARGUMENTS` (fora do código-fonte).
 2. **Nunca invente achados.** Todo finding precisa de arquivo e linha(s) que você **leu** e conferiu. Se um item do catálogo não ocorre, ele não entra no relatório. Se não há APIs deprecated, diga "Nenhuma detectada".
 3. **Ignore** na análise: `.git/`, `.claude/`, `node_modules/`, `venv/`, `.venv/`, `__pycache__/`, `dist/`, `build/`, `instance/`, arquivos `*.db`/`*.sqlite`, lockfiles (`package-lock.json`, `poetry.lock`, ...) e binários.
-4. **Preserve o contrato externo** na Fase 3 (rotas, métodos, nomes de campos de entrada, formato das respostas, status HTTP e o comando de inicialização documentado). Ver `mvc-guidelines.md`. As únicas exceções são as **mudanças de segurança permitidas** de `mvc-guidelines.md` §4 — entre elas a correção do AP-11 (token assinado, rotas protegidas por papel, papel definido pelo servidor), que é **sempre aplicada** e nunca enviada para "Pending".
+4. **Preserve o contrato externo** na Fase 3 (rotas, métodos, nomes de campos de entrada, formato das respostas, status HTTP e o comando de inicialização documentado). Ver `mvc-guidelines.md`. As únicas exceções são as **mudanças de segurança permitidas** de `mvc-guidelines.md` §4 — entre elas a correção do AP-11 (token assinado, rotas protegidas por papel, papel definido pelo servidor) e os **defaults seguros do AP-10** (debug desligado, bind local, CORS fechado), que são **sempre aplicadas** e nunca enviadas para "Pending".
 5. **Adapte-se ao contexto:** um monolito é decomposto; um projeto já parcialmente organizado é melhorado incrementalmente (reaproveite pastas e código existentes).
 6. Toda saída para o usuário segue os blocos de formato definidos abaixo e no template.
 7. **Não execute comandos git que alterem o repositório** (`git checkout -b`, `git switch`, `git add`, `git commit`, `git stash`...). Versionamento é decisão do usuário; ao final apenas informe os arquivos alterados.
 8. Escreva descrições do relatório e do resumo no **idioma do projeto/usuário** (ex.: português se o código e o README estiverem em português); mantenha em inglês apenas os rótulos fixos do template (`File:`, `Impact:`...).
+9. **A Recommendation é um compromisso.** O que a Recommendation de um finding diz é exatamente o que a Fase 3 entrega (mesmos valores, defaults e comportamento). Se parte dela depende de decisão humana, a própria Recommendation diz isso explicitamente (`Pending: <motivo>`) e o item aparece em "Pending" no resumo da Fase 3. Findings **CRITICAL e HIGH são sempre corrigidos** por completo; só a troca de infraestrutura externa (ex.: OAuth/SSO, outro banco) pode ir para "Pending". Nunca escreva uma Recommendation que a Fase 3 não vá cumprir.
 
 ---
 
@@ -73,10 +74,11 @@ Prossiga automaticamente para a Fase 2 (a Fase 1 não modifica nada).
 1. Leia `references/anti-patterns-catalog.md` e `references/audit-report-template.md`.
 2. Percorra **cada arquivo-fonte** e **cada entrada do catálogo**, procurando os sinais de detecção descritos. Use busca textual (Grep) para os sinais "grep-áveis" e leitura para os estruturais.
 3. **Verificação de APIs deprecated** (obrigatória): consulte a tabela de APIs deprecated do catálogo para a stack detectada (busca estática com Grep) **e** confirme em tempo de execução sem modificar o projeto:
-   - Python: se as dependências não estiverem instaladas, crie um venv **temporário fora do projeto** (ex.: no diretório temporário do sistema) e instale o `requirements.txt` nele; então suba a aplicação com `python -W default` (incluindo passos prévios como seed, se necessário, apontando o banco para um caminho temporário quando a config permitir) ou importe o módulo principal, e colete `DeprecationWarning`/`LegacyAPIWarning` com arquivo:linha.
+   - Python: se as dependências não estiverem instaladas, crie um venv **temporário fora do projeto** (ex.: no diretório temporário do sistema) e instale o `requirements.txt` nele; então suba a aplicação com `python -W default` (incluindo passos prévios como seed, se necessário, apontando o banco para um caminho temporário quando a config permitir) ou importe o módulo principal, e colete `DeprecationWarning`/`LegacyAPIWarning` com arquivo:linha. Rode também `pip-audit -r requirements.txt` nesse venv (dependências com vulnerabilidade conhecida entram no AP-18, com pacote, versão e versão corrigida).
    - Node: `npm audit --omit=dev` e `node --trace-deprecation <entry>` (se `node_modules` não existir, rode `npm ci`/`npm install` — `node_modules/` é ignorado pelo git e não conta como modificação do código).
    - Derrube qualquer processo iniciado. Se a verificação em runtime for impossível, diga explicitamente o motivo no relatório.
 4. Para cada achado registre: ID e nome do anti-pattern, severidade, `arquivo:linha` ou `arquivo:inicio-fim` **exatos**, descrição concreta (cite o trecho), impacto e recomendação (referenciando a transformação do playbook).
+   - A recomendação descreve **o que a Fase 3 vai entregar** (regra 9), com os valores concretos que o playbook manda aplicar (ex.: "`CORS_ORIGINS` vazio por padrão = nenhuma origem externa"; "`DELETE` inexistente → 404"). Cada problema citado em Description/Impact precisa de uma ação correspondente na Recommendation — ou de um `Pending: <motivo>` explícito (permitido só em MEDIUM/LOW e só para os casos de "decisão humana" de `mvc-guidelines.md` §4).
    - Agrupe ocorrências do mesmo anti-pattern em um único finding listando todas as localizações.
    - Use a severidade padrão do catálogo; só ajuste seguindo as regras de calibração do catálogo e justifique.
 5. Ordene os findings por severidade: **CRITICAL → HIGH → MEDIUM → LOW**.
@@ -103,7 +105,7 @@ Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]
    - Derrube o servidor (incluindo processos filhos, ex.: reloader do modo debug).
 3. **Planeje** a estrutura alvo conforme `mvc-guidelines.md` (estratégia "monolito" ou "incremental") e mostre a árvore planejada ao usuário em poucas linhas.
 4. **Execute a refatoração em passos pequenos**, aplicando a transformação do playbook correspondente a cada finding, nesta ordem:
-   1. Config extraída (segredos/flags para variáveis de ambiente com defaults seguros de desenvolvimento).
+   1. Config extraída (segredos/flags para variáveis de ambiente) com os **defaults seguros do AP-10** (T02/T17): debug desligado, `HOST` padrão `127.0.0.1` (expor na rede exige `HOST=0.0.0.0` explícito), **CORS fechado por padrão** (`CORS_ORIGINS` vazio = nenhuma origem externa; `*` só se o operador definir explicitamente), segredo aleatório quando ausente. Dependências vulneráveis do AP-18 atualizadas para a versão corrigida.
    2. Camada Model (acesso a dados, queries parametrizadas, entidades).
    3. Services/regras de negócio e dependências injetáveis (ex.: notificações).
    4. Controllers (fluxo da requisição, validação de entrada).
@@ -119,7 +121,10 @@ Phase 2 complete. Proceed with refactoring (Phase 3)? [y/n]
    - Boot: suba a aplicação com o **comando original**; o processo deve permanecer vivo e sem stack traces/warnings de deprecated no log.
    - Endpoints: repita as mesmas requisições do baseline (enviando `Authorization: Bearer <token>` de um admin/dono nas rotas protegidas) e compare **status HTTP** e **estrutura (chaves) do JSON**. Diferenças só são aceitas se forem intencionais e de segurança (ex.: campo `password` removido) e devem ser listadas.
    - Autorização (AP-11): sem token → 401; token adulterado → 401; usuário comum em rota admin ou em recurso de outro usuário → 403; cadastro público com papel admin → criado com o papel padrão.
+   - Defaults seguros (AP-10): sem nenhuma variável de ambiente, o log mostra debug desligado e bind em `127.0.0.1`, e uma requisição com `Origin: http://evil.example` **não** recebe `Access-Control-Allow-Origin`.
+   - Dependências: `pip-audit -r requirements.txt` / `npm audit --omit=dev` sem vulnerabilidades conhecidas (ou cada restante listada em "Pending" com o motivo, ex.: exige major version de framework).
    - Re-auditoria: procure novamente os sinais CRITICAL/HIGH do catálogo no código novo.
+   - **Reconciliação Fase 2 × Fase 3 (obrigatória):** releia o relatório finding por finding e confira no código que **cada** Recommendation foi entregue como escrita (valores e defaults incluídos). Divergência → corrija o código; só se a Recommendation já dizia `Pending: <motivo>` o item pode ficar pendente, e então ele aparece em "Pending". Se a validação mostrar que um finding estava errado, corrija o relatório e diga isso.
    - Se algo falhar: corrija e valide de novo (máximo 3 ciclos); se persistir, reporte honestamente.
    - Derrube o servidor ao final.
 6. Imprima o resumo final neste formato:
@@ -132,20 +137,22 @@ PHASE 3: REFACTORING COMPLETE
 <árvore de diretórios do projeto refatorado, sem pastas ignoradas>
 
 ## Findings Addressed
-<lista: [SEV] Nome → transformação aplicada (arquivo novo)>
+<uma linha por finding do relatório: #N [SEV] Nome → o que foi entregue (arquivo) — ou "Pending" com o motivo já declarado na Recommendation>
 
 ## Security Contract Changes
-<mudanças de contrato de segurança aplicadas (ex.: matriz de acesso do AP-11, campos sensíveis removidos), ou "None">
+<mudanças de contrato de segurança aplicadas (ex.: matriz de acesso do AP-11, CORS fechado por padrão, campos sensíveis removidos), ou "None">
 
 ## Pending (requires human decision)
-<itens não corrigidos automaticamente por exigirem decisão de negócio ou de infraestrutura (nunca o AP-11), ou "None">
+<somente itens cuja Recommendation já dizia "Pending: <motivo>" (decisão de negócio ou de infraestrutura; nunca AP-10/AP-11 nem outro CRITICAL/HIGH), ou "None">
 
 ## Validation
   ✓/✗ Application boots without errors (<comando>)
   ✓/✗ All endpoints respond correctly (<X>/<Y> requests match baseline)
   ✓/✗ Authentication enforced (401 without token, 403 without role, server-defined role on sign-up)
-  ✓/✗ No deprecated API warnings at runtime
-  ✓/✗ No CRITICAL/HIGH anti-patterns remaining (AP-11 incluído)
+  ✓/✗ Secure defaults (debug off, bind 127.0.0.1, no CORS header for foreign Origin)
+  ✓/✗ No deprecated API warnings at runtime; dependency audit clean
+  ✓/✗ No CRITICAL/HIGH anti-patterns remaining (AP-10 e AP-11 incluídos)
+  ✓/✗ Every Recommendation delivered or declared Pending (<N>/<N> findings reconciled)
 ================================
 ```
 

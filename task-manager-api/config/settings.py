@@ -16,11 +16,8 @@ def _env_bool(name, default="0"):
     return os.environ.get(name, default).strip().lower() in ("1", "true", "yes", "on")
 
 
-def _env_list(name, default):
-    raw = os.environ.get(name, default).strip()
-    if raw == "*":
-        return "*"
-    return [item.strip() for item in raw.split(",") if item.strip()]
+def _env_list(name):
+    return [item.strip() for item in os.environ.get(name, "").split(",") if item.strip()]
 
 
 class Config:
@@ -33,10 +30,13 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///tasks.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # Defaults seguros (AP-10): debug desligado e bind local; expor na rede exige HOST=0.0.0.0.
     DEBUG = _env_bool("FLASK_DEBUG")
-    HOST = os.environ.get("HOST", "0.0.0.0")
+    HOST = os.environ.get("HOST", "127.0.0.1")
     PORT = int(os.environ.get("PORT", "5000"))
-    CORS_ORIGINS = _env_list("CORS_ORIGINS", "*")
+    # CORS fechado por padrão: vazio = nenhuma origem externa. Lista separada por vírgula libera
+    # só essas origens; "*" precisa ser definido explicitamente.
+    CORS_ORIGINS = _env_list("CORS_ORIGINS")
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
     # Notificações por e-mail (desligadas quando SMTP_HOST/SMTP_USER não estão definidos)

@@ -2,6 +2,8 @@ const logger = require('../utils/logger');
 
 const config = {
     port: Number(process.env.PORT) || 3000,
+    // Bind local por padrão (AP-10); expor na rede exige HOST=0.0.0.0 explícito.
+    host: process.env.HOST || '127.0.0.1',
     databasePath: process.env.DATABASE_PATH || ':memory:',
     paymentGatewayKey: process.env.PAYMENT_GATEWAY_KEY || '',
     // Credencial das rotas administrativas (Authorization: Bearer <ADMIN_TOKEN>). Nunca versionar.

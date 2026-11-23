@@ -54,40 +54,62 @@ const user = await db.get('SELECT * FROM users WHERE id = ?', [id]);
 ```
 
 ## T02 — Extrair configuração para ambiente
-**Passos:** criar módulo de config; mover segredos, URIs, porta, debug; ler do ambiente com defaults **seguros** de desenvolvimento; substituir os usos; nunca retornar config em respostas.
+**Passos:** criar módulo de config; mover segredos, URIs, porta, debug, host e origens de CORS; ler do ambiente com defaults **seguros** (os mesmos que a Recommendation do AP-10 cita); substituir os usos; nunca retornar config em respostas.
+
+**Defaults seguros obrigatórios (AP-10, nunca "Pending"):**
+
+| Variável | Default | Para o comportamento antigo |
+|---|---|---|
+| `FLASK_DEBUG` / `APP_DEBUG` | desligado | `FLASK_DEBUG=1` (só desenvolvimento) |
+| `HOST` | `127.0.0.1` | `HOST=0.0.0.0` |
+| `CORS_ORIGINS` | vazio = **nenhuma** origem externa | `CORS_ORIGINS=https://app.exemplo.com,https://admin.exemplo.com` (ou `*`, explicitamente) |
+| `SECRET_KEY` | aleatório por boot + aviso no log | definir no ambiente |
 
 ```python
 # ANTES (app.py)
 app.config["SECRET_KEY"] = "minha-chave-super-secreta-123"
 app.config["DEBUG"] = True
+CORS(app)                                   # qualquer origem
+app.run(host="0.0.0.0", port=5000, debug=True)
 
 # DEPOIS (config/settings.py)
 import os, secrets, logging
+
+def _csv(name):
+    return [item.strip() for item in os.environ.get(name, "").split(",") if item.strip()]
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
     DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
     DATABASE_PATH = os.environ.get("DATABASE_PATH", "loja.db")
-    HOST = os.environ.get("HOST", "0.0.0.0")
+    HOST = os.environ.get("HOST", "127.0.0.1")       # expor na rede é explícito
     PORT = int(os.environ.get("PORT", "5000"))
+    CORS_ORIGINS = _csv("CORS_ORIGINS")               # [] = CORS fechado; ["*"] só se definido
 
 if not os.environ.get("SECRET_KEY"):
     logging.getLogger(__name__).warning("SECRET_KEY não definida; usando chave aleatória (apenas desenvolvimento).")
 ```
+O registro do CORS fica no composition root (T17): só com lista não vazia.
 
 ```js
 // ANTES (utils.js)
 const config = { dbPass: "senha_super_secreta_prod_123", paymentGatewayKey: "pk_live_123", port: 3000 };
+app.use(cors());                                       // qualquer origem
 
 // DEPOIS (src/config/index.js)
+const csv = (v) => (v || '').split(',').map((s) => s.trim()).filter(Boolean);
 module.exports = {
   port: Number(process.env.PORT) || 3000,
+  host: process.env.HOST || '127.0.0.1',
+  corsOrigins: csv(process.env.CORS_ORIGINS),          // [] = CORS fechado
   db: { user: process.env.DB_USER || '', pass: process.env.DB_PASS || '' },
   paymentGatewayKey: process.env.PAYMENT_GATEWAY_KEY || '',
   smtpUser: process.env.SMTP_USER || '',
 };
+// src/app.js: if (config.corsOrigins.length) app.use(cors({ origin: config.corsOrigins }));
+// app.listen(config.port, config.host)
 ```
-Crie também um `.env.example` (sem valores reais) documentando as variáveis.
+Crie também um `.env.example` (sem valores reais) documentando as variáveis e os defaults. Se o projeto original **não** usava CORS nem outro host, não acrescente nada: mantenha o comportamento (fechado) e só leia `PORT`/`HOST` do ambiente.
 
 ## T03 — Hash de senha seguro com migração transparente
 **Passos:** usar algoritmo forte com salt; ao fazer login, se o hash armazenado for legado (texto puro, MD5, base64), validar pelo método antigo e **regravar** com o novo (migração sem quebrar usuários existentes); seeds passam a gravar hash; nunca comparar senha no SQL.
@@ -361,6 +383,38 @@ function transaction(work) {
   return result;
 }
 ```
+
+**Integridade referencial (AP-20) — escolha conforme o filho:**
+
+```python
+# Filho é histórico (itens de pedido → produto): SOFT DELETE do pai
+# ANTES
+conn.execute("DELETE FROM produtos WHERE id = ?", (produto_id,))   # itens ficam apontando para o nada
+# DEPOIS (model)
+def deletar(produto_id):
+    with conn:
+        conn.execute("UPDATE produtos SET ativo = 0 WHERE id = ?", (produto_id,))
+def listar():
+    return conn.execute("SELECT ... FROM produtos WHERE ativo = 1").fetchall()   # leituras públicas filtram ativos
+# O histórico do pedido continua com o nome do produto; GET /produtos/<id> do excluído → 404 (como antes).
+```
+
+```js
+// Filho pertence ao pai (matrículas e pagamentos de um usuário): CASCATA na mesma transação
+// ANTES
+db.run('DELETE FROM users WHERE id = ?', [id]);   // "matrículas e pagamentos ficaram sujos no banco"
+// DEPOIS (service)
+async function deleteUser(id) {
+  return db.transaction(async () => {
+    const user = await userModel.findById(id);
+    if (!user) throw new NotFoundError('Usuário não encontrado');           // antes: 200 falso
+    await paymentModel.deleteByUser(id);    // DELETE FROM payments WHERE enrollment_id IN (SELECT id FROM enrollments WHERE user_id = ?)
+    await enrollmentModel.deleteByUser(id); // DELETE FROM enrollments WHERE user_id = ?
+    await userModel.deleteById(id);
+  });
+}
+```
+Atualizações e exclusões que hoje respondem 200 para id inexistente passam a checar `rowcount`/`changes` e responder 404 (mudança permitida, `mvc-guidelines.md` §4).
 
 ## T10 — Substituir estado global por dependências gerenciadas
 **Passos:** conexões por requisição (Flask `g` + `teardown_appcontext`) ou criadas no composition root e injetadas; caches com escopo e limite definidos (ou removidos se não lidos); remover variáveis globais mortas.
@@ -680,6 +734,8 @@ from views.routes import register_routes
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    if app.config["CORS_ORIGINS"]:                     # AP-10: CORS fechado por padrão
+        CORS(app, origins=app.config["CORS_ORIGINS"])  # from flask_cors import CORS
     app.teardown_appcontext(close_db)
     with app.app_context():
         init_db()
@@ -690,7 +746,7 @@ def create_app(config_class=Config):
 app = create_app()            # mantém `from app import app` funcionando
 
 if __name__ == "__main__":
-    app.run(host=app.config["HOST"], port=app.config["PORT"], debug=app.config["DEBUG"])
+    app.run(host=app.config["HOST"], port=app.config["PORT"], debug=app.config["DEBUG"])  # 127.0.0.1 / debug off por padrão
 ```
 
 ```js
@@ -707,7 +763,7 @@ async function main() {
   app.use(express.json());
   app.use(buildRoutes({ db }));                      // injeta dependências
   app.use(errorHandler);
-  app.listen(config.port, () => console.log(`Servidor rodando na porta ${config.port}`));
+  app.listen(config.port, config.host, () => console.log(`Servidor rodando em ${config.host}:${config.port}`));
 }
 main();
 ```

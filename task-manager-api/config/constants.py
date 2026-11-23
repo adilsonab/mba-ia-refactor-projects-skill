@@ -21,7 +21,7 @@ TAGS_SEPARATOR = ","
 USER_ROLES = ("user", "admin", "manager")
 DEFAULT_ROLE = "user"
 ADMIN_ROLE = "admin"
-MIN_PASSWORD_LENGTH = 4
+MIN_PASSWORD_LENGTH = 8  # novos cadastros e trocas de senha (o original aceitava 4)
 DEFAULT_TOKEN_MAX_AGE_SECONDS = 8 * 60 * 60  # validade do token de acesso emitido no login
 
 # Categorias

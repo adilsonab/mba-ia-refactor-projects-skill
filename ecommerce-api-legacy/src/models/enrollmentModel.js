@@ -5,6 +5,10 @@ function createEnrollmentModel(db) {
                 [userId, courseId]);
             return lastID;
         },
+
+        deleteByUser(userId) {
+            return db.run('DELETE FROM enrollments WHERE user_id = ?', [userId]);
+        },
     };
 }
 
