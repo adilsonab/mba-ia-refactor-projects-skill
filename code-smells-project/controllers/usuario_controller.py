@@ -1,54 +1,34 @@
-import logging
-
 from flask import jsonify
 
-from controllers.validators import require_json, texto_obrigatorio
-from errors import NotFoundError, UnauthorizedError, ValidationError
-from middlewares.auth import exigir_dono_ou_admin
-from models import usuario_model
+from controllers import validators
+from errors import UnauthorizedError
+from middlewares.auth import ensure_self_or_admin
 from services import auth_service, usuario_service
-from views import serializers
-
-logger = logging.getLogger(__name__)
 
 
 def listar_usuarios():
-    return jsonify({"dados": serializers.usuarios(usuario_model.listar()), "sucesso": True}), 200
+    return jsonify({"dados": usuario_service.listar(), "sucesso": True}), 200
 
 
 def buscar_usuario(usuario_id):
-    exigir_dono_ou_admin(usuario_id)
-    usuario = usuario_model.buscar_por_id(usuario_id)
-    if not usuario:
-        raise NotFoundError("Usuário não encontrado")
-    return jsonify({"dados": serializers.usuario(usuario), "sucesso": True}), 200
+    ensure_self_or_admin(usuario_id)
+    return jsonify({"dados": usuario_service.obter(usuario_id), "sucesso": True}), 200
 
 
 def criar_usuario():
-    dados = require_json()
-    nome = texto_obrigatorio(dados, "nome")
-    email = texto_obrigatorio(dados, "email")
-    senha = texto_obrigatorio(dados, "senha")
-    if not nome or not email or not senha:
-        raise ValidationError("Nome, email e senha são obrigatórios")
-
-    usuario_id = usuario_service.criar(nome, email, senha)  # role ("tipo") is always the server default
-    logger.info("Usuário criado: id=%s", usuario_id)
+    nome, email, senha = validators.usuario_payload(validators.json_body())
+    usuario_id = usuario_service.cadastrar(nome, email, senha)  # tipo do corpo é ignorado
     return jsonify({"dados": {"id": usuario_id}, "sucesso": True}), 201
 
 
 def login():
-    dados = require_json()
-    email = texto_obrigatorio(dados, "email")
-    senha = texto_obrigatorio(dados, "senha")
-    if not email or not senha:
-        raise ValidationError("Email e senha são obrigatórios")
-
+    email, senha = validators.login_payload(validators.json_body(permitir_vazio=True))
     usuario = usuario_service.autenticar(email, senha)
-    if not usuario:
-        logger.info("Falha de login")
+    if usuario is None:
         raise UnauthorizedError("Email ou senha inválidos")
-
-    logger.info("Login bem-sucedido: usuario id=%s", usuario["id"])
-    dados_login = serializers.usuario_login(usuario, auth_service.emitir_token(usuario))
-    return jsonify({"dados": dados_login, "sucesso": True, "mensagem": "Login OK"}), 200
+    return jsonify({
+        "dados": usuario,
+        "sucesso": True,
+        "mensagem": "Login OK",
+        "token": auth_service.emitir_token(usuario),
+    }), 200

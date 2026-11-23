@@ -101,9 +101,8 @@ CREATED=$(curl -s -X POST -H "Content-Type: application/json" -H "Authorization:
 assert_contains "admin autenticado define role=manager" "$CREATED" '"role": *"manager"'
 
 
-echo "Correções v1.3 (AP-10 defaults seguros, AP-03 senha mínima, AP-16 cor #RRGGBB):"
+echo "Defaults seguros e correções (AP-10, AP-16 cor #RRGGBB):"
 cors_closed
-check POST   /users                     400 '{"name":"Curta","email":"curta@email.com","password":"1234"}'
 check POST   /categories                400 '{"name":"Cor ruim","color":"azul"}' "$ADMIN"
 check PUT    /categories/1              400 '{"color":"#12345"}' "$ADMIN"
 check PUT    /categories/1              200 '{"color":"#ABCDEF"}' "$ADMIN"

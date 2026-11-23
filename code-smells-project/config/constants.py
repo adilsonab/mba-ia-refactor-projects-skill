@@ -1,24 +1,21 @@
-"""Named business constants (values preserved from the original code)."""
+"""Constantes de negócio nomeadas (valores idênticos aos do código original)."""
 
 API_VERSION = "1.0.0"
 
-# Products
 CATEGORIAS_VALIDAS = ["informatica", "moveis", "vestuario", "geral", "eletronicos", "livros"]
 CATEGORIA_PADRAO = "geral"
 NOME_PRODUTO_MIN = 2
 NOME_PRODUTO_MAX = 200
 
-# Users
-TIPO_USUARIO_PADRAO = "cliente"  # public sign-up always gets this role (server-defined)
-TIPO_ADMIN = "admin"
-TOKEN_MAX_AGE_PADRAO = 8 * 60 * 60  # access token validity (seconds)
+STATUS_PENDENTE = "pendente"
+STATUS_APROVADO = "aprovado"
+STATUS_CANCELADO = "cancelado"
+STATUS_PEDIDO = [STATUS_PENDENTE, STATUS_APROVADO, "enviado", "entregue", STATUS_CANCELADO]
+STATUS_INICIAL_PEDIDO = STATUS_PENDENTE
+STATUS_NOTIFICADOS = (STATUS_APROVADO, STATUS_CANCELADO)  # mudanças que disparam notificação
 
-# Orders
-STATUS_PEDIDO_INICIAL = "pendente"
-STATUS_PEDIDO_APROVADO = "aprovado"
-STATUS_PEDIDO_CANCELADO = "cancelado"
-STATUS_PEDIDO_VALIDOS = ["pendente", "aprovado", "enviado", "entregue", "cancelado"]
-PRODUTO_DESCONHECIDO = "Desconhecido"
-
-# Sales report: (exclusive minimum revenue, discount rate), checked in order
+# (faturamento mínimo exclusivo, taxa de desconto), da maior faixa para a menor
 FAIXAS_DESCONTO = ((10000, 0.10), (5000, 0.05), (1000, 0.02))
+
+TIPO_CLIENTE = "cliente"
+TIPO_ADMIN = "admin"

@@ -1,39 +1,48 @@
-$ ADMIN_TOKEN=<aleatório> node --trace-deprecation src/app.js   (sem outras variáveis; log do servidor ao final)
+$ ADMIN_PASSWORD=<aleatória> node --trace-deprecation src/app.js   (sem outras variáveis; log do servidor ao final)
 Smoke test: http://localhost:3000
+  tokens obtidos via POST /api/login
   OK   POST /api/checkout -> 200
   OK   POST /api/checkout -> 200
   OK   POST /api/checkout -> 400
   OK   POST /api/checkout -> 400
   OK   POST /api/checkout -> 404
 Autorização (AP-11):
+  OK   POST /api/login -> 401
   OK   GET /api/admin/financial-report -> 401
   OK   GET /api/admin/financial-report -> 401
   OK   GET /api/admin/financial-report -> 401
+  OK   GET /api/admin/financial-report -> 403
   OK   DELETE /api/users/1 -> 401
-  OK   DELETE /api/users/1 -> 401
+  OK   DELETE /api/users/1 -> 403
+  OK   POST /api/checkout -> 401
+  OK   POST /api/checkout -> 200
+  OK   GET /api/admin/financial-report -> 403
   OK   GET /api/admin/financial-report -> 200
-  relatório: [{"course":"Clean Architecture","revenue":997,"students":[{"student":"Leonan","paid":997}]},{"course":"Docker","revenue":994,"students":[{"student":"Guilherme","paid":497},{"student":"Leonan","paid":497}]}]
-  OK   receitas do relatório conferem
-Correções v1.3 (AP-10, AP-16 validação, AP-17 404, AP-20 cascata):
+  relatório: [{"course":"Clean Architecture","revenue":1994,"students":[{"student":"Leonan","paid":997},{"student":"Mallory","paid":997}]},{"course":"Docker","revenue":994,"students":[{"student":"Guilherme","paid":497},{"student":"Leonan","paid":497}]}]
+  OK   receitas do relatório conferem (1994 e 994)
+Defaults seguros e correções (AP-10, AP-16, AP-17, AP-20):
   OK   CORS fechado por padrão (origem externa sem Access-Control-Allow-Origin)
-  OK   POST /api/checkout -> 400
-  OK   POST /api/checkout -> 400
   OK   POST /api/checkout -> 400
   OK   DELETE /api/users/abc -> 400
   OK   DELETE /api/users/9999 -> 404
-  OK   DELETE /api/users/1 -> 200
-  OK   DELETE /api/users/1 -> 404
-  relatório após exclusão: [{"course":"Clean Architecture","revenue":0,"students":[]},{"course":"Docker","revenue":497,"students":[{"student":"Guilherme","paid":497}]}]
+  OK   DELETE /api/users/3 -> 200
+  OK   DELETE /api/users/3 -> 404
+  relatório após exclusão: [{"course":"Clean Architecture","revenue":1994,"students":[{"student":"Leonan","paid":997},{"student":"Mallory","paid":997}]},{"course":"Docker","revenue":497,"students":[{"student":"Leonan","paid":497}]}]
   OK   exclusão em cascata: relatório sem alunos órfãos
-  OK   receitas após a exclusão (curso 1 = 0, curso 2 = 497)
-Resultado: 22 OK, 0 FAIL
+  OK   receita do curso 2 após a exclusão = 497
+Resultado: 25 OK, 0 FAIL
 
 --- log do servidor ---
-[WARN] PAYMENT_GATEWAY_KEY não definida; gateway de pagamento roda em modo simulado (apenas desenvolvimento).
-[INFO] Frankenstein LMS rodando em http://127.0.0.1:3000...
-[INFO] Processando pagamento de 497 com cartão final 4444 (gateway simulado)
-[INFO] Processando pagamento de 497 com cartão final 4444 (gateway simulado)
-[INFO] Processando pagamento de 997 com cartão final 4444 (gateway simulado)
+2026-11-23T16:34:09.623Z [WARN] SECRET_KEY não definida; usando chave aleatória por boot (tokens expiram ao reiniciar — apenas desenvolvimento).
+2026-11-23T16:34:09.631Z [WARN] PAYMENT_GATEWAY_KEY não definida (gateway simulado).
+2026-11-23T16:34:09.718Z [INFO] LMS API rodando em http://127.0.0.1:3000 (CORS: fechado)
+2026-11-23T16:34:11.522Z [INFO] Processando pagamento de 497 com cartão **** 4444: PAID
+2026-11-23T16:34:11.553Z [INFO] Checkout concluído: matrícula 2 (curso 2, usuário 3)
+2026-11-23T16:34:12.003Z [INFO] Processando pagamento de 497 com cartão **** 4444: PAID
+2026-11-23T16:34:12.004Z [INFO] Checkout concluído: matrícula 3 (curso 2, usuário 1)
+2026-11-23T16:34:12.491Z [INFO] Processando pagamento de 997 com cartão **** 4444: DENIED
+2026-11-23T16:34:17.498Z [INFO] Processando pagamento de 997 com cartão **** 4444: PAID
+2026-11-23T16:34:17.526Z [INFO] Checkout concluído: matrícula 4 (curso 1, usuário 4)
 
 --- auditoria de dependências ---
 $ npm audit --omit=dev

@@ -1,8 +1,6 @@
 function createAuditLogModel(db) {
     return {
-        log(action) {
-            return db.run("INSERT INTO audit_logs (action, created_at) VALUES (?, datetime('now'))", [action]);
-        },
+        log: (action) => db.run("INSERT INTO audit_logs (action, created_at) VALUES (?, datetime('now'))", [action]),
     };
 }
 

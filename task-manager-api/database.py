@@ -1,23 +1,42 @@
-import sqlite3
-
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 db = SQLAlchemy()
 
 
+@event.listens_for(Engine, 'connect')
 def _enable_sqlite_foreign_keys(dbapi_connection, _record):
-    if isinstance(dbapi_connection, sqlite3.Connection):
+    """Integridade referencial no SQLite (desligada por padrão no driver)."""
+    if dbapi_connection.__class__.__module__.startswith('sqlite3'):
         cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys = ON")
+        cursor.execute('PRAGMA foreign_keys = ON')
         cursor.close()
 
 
-def init_db(app):
-    """Inicializa a extensão, liga a integridade referencial no SQLite e cria as tabelas."""
-    db.init_app(app)
-    with app.app_context():
-        import models  # noqa: F401  (registra os models no metadata)
+def save(*objects):
+    """Grava um ou mais objetos em uma única transação."""
+    try:
+        for obj in objects:
+            db.session.add(obj)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
-        event.listen(db.engine, "connect", _enable_sqlite_foreign_keys)
-        db.create_all()
+
+def commit():
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+
+def delete(obj):
+    try:
+        db.session.delete(obj)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise

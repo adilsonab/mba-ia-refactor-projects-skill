@@ -1,34 +1,16 @@
-const logger = require('../utils/logger');
+const { HttpError } = require('../utils/errors');
 
-class AppError extends Error {
-    constructor(message, status = 400) {
-        super(message);
-        this.status = status;
-    }
+// Encaminha rejeições de handlers async ao error handler central.
+const asyncHandler = (fn) => (req, res, next) => Promise.resolve().then(() => fn(req, res, next)).catch(next);
+
+function createErrorHandler(logger) {
+    // eslint-disable-next-line no-unused-vars
+    return (err, req, res, next) => {
+        if (err instanceof HttpError) return res.status(err.status).send(err.message);
+        if (err && err.type === 'entity.parse.failed') return res.status(400).send('Bad Request');
+        logger.error(`Erro não tratado em ${req.method} ${req.path}:`, err && err.stack ? err.stack : err);
+        return res.status(500).send('Erro interno');
+    };
 }
 
-class ValidationError extends AppError {
-    constructor(message = 'Bad Request') { super(message, 400); }
-}
-
-class NotFoundError extends AppError {
-    constructor(message) { super(message, 404); }
-}
-
-class UnauthorizedError extends AppError {
-    constructor(message = 'Não autorizado') { super(message, 401); }
-}
-
-const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
-
-// eslint-disable-next-line no-unused-vars
-function errorHandler(err, req, res, next) {
-    // Mantém o formato original da API: erros em texto puro.
-    if (err instanceof AppError) return res.status(err.status).send(err.message);
-    if (err.type === 'entity.parse.failed') return res.status(400).send('Bad Request');
-
-    logger.error(`${req.method} ${req.originalUrl} falhou:`, err);
-    return res.status(500).send('Erro interno');
-}
-
-module.exports = { AppError, ValidationError, NotFoundError, UnauthorizedError, asyncHandler, errorHandler };
+module.exports = { asyncHandler, createErrorHandler };

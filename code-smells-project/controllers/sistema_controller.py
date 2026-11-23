@@ -1,7 +1,7 @@
-"""Index, health check and the (admin-only) administrative reset."""
 import logging
+import sqlite3
 
-from flask import current_app, jsonify
+from flask import jsonify
 
 from config.constants import API_VERSION
 from models import sistema_model
@@ -25,16 +25,15 @@ def index():
 
 
 def health_check():
-    return jsonify({
-        "status": "ok",
-        "database": "connected",
-        "counts": sistema_model.contagens(),
-        "versao": API_VERSION,
-        "ambiente": current_app.config["APP_ENV"],
-    }), 200
+    try:
+        counts = sistema_model.contagens()
+    except sqlite3.Error:
+        logger.exception("Health check: falha ao acessar o banco")
+        return jsonify({"status": "erro", "database": "disconnected"}), 500
+    return jsonify({"status": "ok", "database": "connected", "counts": counts, "versao": API_VERSION}), 200
 
 
-def reset_database():  # admin only (admin_required in views/routes.py)
-    sistema_model.limpar_todas_tabelas()
-    logger.warning("Banco de dados resetado via /admin/reset-db")
+def reset_database():
+    sistema_model.resetar()
+    logger.warning("Banco de dados resetado por administrador")
     return jsonify({"mensagem": "Banco de dados resetado", "sucesso": True}), 200

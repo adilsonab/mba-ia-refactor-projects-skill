@@ -1,5 +1,5 @@
-"""Order use cases: creation (stock + total rules), listing and status changes."""
-from config.constants import STATUS_PEDIDO_APROVADO, STATUS_PEDIDO_CANCELADO, STATUS_PEDIDO_VALIDOS
+"""Casos de uso de pedidos: cálculo do total, checagem de estoque e mudança de status."""
+from config.constants import STATUS_NOTIFICADOS, STATUS_PEDIDO
 from errors import NotFoundError, ValidationError
 from models import pedido_model, produto_model
 
@@ -12,32 +12,36 @@ class PedidoService:
         produtos = produto_model.buscar_por_ids(item["produto_id"] for item in itens)
 
         total = 0
+        itens_precificados = []
         for item in itens:
             produto = produtos.get(item["produto_id"])
             if produto is None:
-                raise ValidationError(f"Produto {item['produto_id']} não encontrado")
+                raise ValidationError("Produto " + str(item["produto_id"]) + " não encontrado")
             if produto["estoque"] < item["quantidade"]:
-                raise ValidationError(f"Estoque insuficiente para {produto['nome']}")
-            total += produto["preco"] * item["quantidade"]
+                raise ValidationError("Estoque insuficiente para " + produto["nome"])
+            total = total + (produto["preco"] * item["quantidade"])
+            itens_precificados.append({
+                "produto_id": item["produto_id"],
+                "quantidade": item["quantidade"],
+                "preco_unitario": produto["preco"],
+                "nome": produto["nome"],
+            })
 
-        precos = {produto_id: produto["preco"] for produto_id, produto in produtos.items()}
-        try:
-            pedido_id = pedido_model.criar_com_itens(usuario_id, itens, total, precos)
-        except pedido_model.EstoqueInsuficiente as exc:
-            raise ValidationError(f"Estoque insuficiente para {produtos[exc.produto_id]['nome']}") from exc
-
-        self.notifier.pedido_criado(pedido_id, usuario_id)
+        # O débito é revalidado de forma atômica dentro da transação (concorrência).
+        pedido_id = pedido_model.criar_com_itens(usuario_id, itens_precificados, total)
+        self.notifier.notificar_pedido_criado(pedido_id, usuario_id)
         return {"pedido_id": pedido_id, "total": total}
 
-    def listar(self, usuario_id=None):
-        return pedido_model.listar_com_itens(usuario_id)
+    def listar_todos(self):
+        return pedido_model.listar()
+
+    def listar_por_usuario(self, usuario_id):
+        return pedido_model.listar(usuario_id)
 
     def atualizar_status(self, pedido_id, novo_status):
-        if novo_status not in STATUS_PEDIDO_VALIDOS:
+        if novo_status not in STATUS_PEDIDO:
             raise ValidationError("Status inválido")
-        if pedido_model.atualizar_status(pedido_id, novo_status) == 0:
-            raise NotFoundError("Pedido não encontrado")  # before: 200 for a nonexistent order
-        if novo_status == STATUS_PEDIDO_APROVADO:
-            self.notifier.pedido_aprovado(pedido_id)
-        elif novo_status == STATUS_PEDIDO_CANCELADO:
-            self.notifier.pedido_cancelado(pedido_id)
+        if not pedido_model.atualizar_status(pedido_id, novo_status):
+            raise NotFoundError("Pedido não encontrado")
+        if novo_status in STATUS_NOTIFICADOS:
+            self.notifier.notificar_status_pedido(pedido_id, novo_status)

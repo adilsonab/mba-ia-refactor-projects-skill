@@ -82,7 +82,8 @@ MALLORY_LOGIN=$(curl -s -X POST -H "Content-Type: application/json" -d '{"email"
 assert_contains "cadastro público com tipo=admin vira tipo=cliente" "$MALLORY_LOGIN" '"tipo": *"cliente"'
 MALLORY=$(echo "$MALLORY_LOGIN" | sed -n 's/.*"token": *"\([^"]*\)".*/\1/p')
 check GET    /usuarios                 403 "" "$MALLORY"
-echo "Correções v1.3 (AP-10 defaults seguros, AP-16 404, AP-20 soft delete):"
+echo "Defaults seguros e correções (AP-10, AP-05, AP-16 404, AP-20 soft delete):"
+check POST   /admin/query              404 '{"sql":"SELECT email, senha FROM usuarios"}' "$ADMIN"
 cors_closed
 check PUT    /pedidos/9999/status      404 '{"status":"aprovado"}' "$ADMIN"
 check POST   /pedidos                  201 '{"usuario_id":2,"itens":[{"produto_id":3,"quantidade":1}]}' "$JOAO"

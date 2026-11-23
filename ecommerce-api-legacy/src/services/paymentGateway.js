@@ -1,12 +1,13 @@
 const { PAYMENT_STATUS, APPROVED_CARD_PREFIX } = require('../config/constants');
 
-// Gateway simulado, injetável (substituível por uma integração real ou por um mock em testes).
+// Gateway simulado (mesma regra do código original), injetável e substituível.
 function createPaymentGateway({ apiKey, logger }) {
     return {
+        apiKey, // usada por um gateway real; nunca logada
         charge(cardNumber, amount) {
-            logger.info(`Processando pagamento de ${amount} com cartão final ${cardNumber.slice(-4)}`
-                + ` (gateway ${apiKey ? 'configurado' : 'simulado'})`);
-            return cardNumber.startsWith(APPROVED_CARD_PREFIX) ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.DENIED;
+            const status = cardNumber.startsWith(APPROVED_CARD_PREFIX) ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.DENIED;
+            logger.info(`Processando pagamento de ${amount} com cartão **** ${cardNumber.slice(-4)}: ${status}`);
+            return status;
         },
     };
 }

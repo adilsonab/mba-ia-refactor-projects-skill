@@ -1,15 +1,16 @@
-"""Composition root: builds the Flask app, wires dependencies and keeps `python app.py` working."""
+"""Composition root: cria o app, carrega config, inicializa o banco e registra dependências/rotas."""
 import logging
 
 from flask import Flask
 from flask_cors import CORS
 
 from config.settings import Config
-from database import close_db, init_db
+from database import close_db
 from middlewares.error_handler import register_error_handlers
+from models.seed import init_db
+from routes import register_routes
 from services.notification_service import NotificationService
 from services.pedido_service import PedidoService
-from views.routes import register_routes
 
 logger = logging.getLogger(__name__)
 
@@ -18,22 +19,17 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    logging.basicConfig(
-        level=app.config["LOG_LEVEL"],
-        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    )
+    logging.basicConfig(level=app.config["LOG_LEVEL"], format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     if not app.config["SECRET_KEY_FROM_ENV"]:
-        logger.warning("SECRET_KEY não definida; usando chave aleatória (apenas desenvolvimento).")
+        logger.warning("SECRET_KEY não definida; usando chave aleatória (tokens expiram a cada reinício).")
 
-    if app.config["CORS_ORIGINS"]:  # CORS closed unless an allowlist is configured
+    if app.config["CORS_ORIGINS"]:  # CORS fechado por padrão
         CORS(app, origins=app.config["CORS_ORIGINS"])
 
     app.teardown_appcontext(close_db)
-    with app.app_context():
-        init_db()
+    init_db(app.config["DB_PATH"])
 
-    notifier = NotificationService(logging.getLogger("notificacoes"))
-    app.extensions["pedido_service"] = PedidoService(notifier)
+    app.extensions["pedido_service"] = PedidoService(NotificationService())
 
     register_routes(app)
     register_error_handlers(app)
@@ -41,7 +37,6 @@ def create_app(config_class=Config):
 
 
 app = create_app()
-
 
 if __name__ == "__main__":
     logger.info("Servidor iniciado em http://%s:%s (debug=%s)",

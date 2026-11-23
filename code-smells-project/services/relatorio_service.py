@@ -1,10 +1,5 @@
-"""Sales report use case (discount rule isolated in a pure function)."""
-from config.constants import (
-    FAIXAS_DESCONTO,
-    STATUS_PEDIDO_APROVADO,
-    STATUS_PEDIDO_CANCELADO,
-    STATUS_PEDIDO_INICIAL,
-)
+"""Relatório de vendas e regra de desconto por faixa de faturamento."""
+from config.constants import FAIXAS_DESCONTO, STATUS_APROVADO, STATUS_CANCELADO, STATUS_PENDENTE
 from models import pedido_model
 
 
@@ -16,11 +11,10 @@ def calcular_desconto(faturamento):
 
 
 def relatorio_vendas():
-    resumo = pedido_model.resumo_vendas(STATUS_PEDIDO_INICIAL, STATUS_PEDIDO_APROVADO, STATUS_PEDIDO_CANCELADO)
-    total_pedidos = resumo["total_pedidos"]
+    resumo = pedido_model.resumo_vendas(STATUS_PENDENTE, STATUS_APROVADO, STATUS_CANCELADO)
     faturamento = resumo["faturamento"]
+    total_pedidos = resumo["total_pedidos"]
     desconto = calcular_desconto(faturamento)
-
     return {
         "total_pedidos": total_pedidos,
         "faturamento_bruto": round(faturamento, 2),

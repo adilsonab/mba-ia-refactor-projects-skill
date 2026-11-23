@@ -1,18 +1,13 @@
-"""Notification channel (email/SMS/push). Current implementation only logs; swap it in app.create_app()."""
+"""Notificações (e-mail/SMS/push). Implementação padrão registra em log; troque por um canal real injetando outra classe."""
 import logging
 
 
 class NotificationService:
     def __init__(self, logger=None):
-        self.logger = logger or logging.getLogger("notificacoes")
+        self.logger = logger or logging.getLogger(__name__)
 
-    def pedido_criado(self, pedido_id, usuario_id):
-        self.logger.info("ENVIANDO EMAIL: Pedido %s criado para usuario %s", pedido_id, usuario_id)
-        self.logger.info("ENVIANDO SMS: Seu pedido foi recebido!")
-        self.logger.info("ENVIANDO PUSH: Novo pedido recebido pelo sistema")
+    def notificar_pedido_criado(self, pedido_id, usuario_id):
+        self.logger.info("Notificação (email/sms/push): pedido %s criado para usuário %s", pedido_id, usuario_id)
 
-    def pedido_aprovado(self, pedido_id):
-        self.logger.info("NOTIFICAÇÃO: Pedido %s foi aprovado! Preparar envio.", pedido_id)
-
-    def pedido_cancelado(self, pedido_id):
-        self.logger.info("NOTIFICAÇÃO: Pedido %s cancelado. Devolver estoque.", pedido_id)
+    def notificar_status_pedido(self, pedido_id, novo_status):
+        self.logger.info("Notificação: pedido %s mudou para '%s'", pedido_id, novo_status)

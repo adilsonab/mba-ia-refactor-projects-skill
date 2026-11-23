@@ -1,70 +1,73 @@
-"""Notificações com transporte injetável (SMTP configurado por ambiente ou log em desenvolvimento)."""
+"""Notificações por e-mail com dependências injetáveis.
+
+O serviço é criado no composition root (``app.extensions['notifications']``), mas ainda não está
+ligado a nenhuma rota: disparar notificações em eventos é decisão de negócio pendente.
+"""
 import logging
 import smtplib
-from email.message import EmailMessage
+
+from utils.helpers import utc_now
 
 logger = logging.getLogger(__name__)
 
 
-class LogEmailTransport:
-    """Transporte padrão de desenvolvimento: apenas registra o e-mail no log."""
+class SmtpSender:
+    def __init__(self, host, port, user, password):
+        self.host, self.port, self.user, self.password = host, port, user, password
+
+    @property
+    def enabled(self):
+        return bool(self.host and self.user and self.password)
 
     def send(self, to, subject, body):
-        logger.info("E-mail (simulado) para %s: %s", to, subject)
-
-
-class SmtpEmailTransport:
-    def __init__(self, host, port, user, password, sender):
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        self.sender = sender or user
-
-    def send(self, to, subject, body):
-        message = EmailMessage()
-        message["From"] = self.sender
-        message["To"] = to
-        message["Subject"] = subject
-        message.set_content(body)
-        with smtplib.SMTP(self.host, self.port, timeout=10) as server:
+        if not self.enabled:
+            logger.warning('SMTP não configurado; e-mail para %s não enviado', to)
+            return False
+        message = f'Subject: {subject}\n\n{body}'
+        with smtplib.SMTP(self.host, self.port) as server:
             server.starttls()
             server.login(self.user, self.password)
-            server.send_message(message)
+            server.sendmail(self.user, to, message)
+        return True
 
 
 class NotificationService:
-    def __init__(self, transport):
-        self.transport = transport
+    def __init__(self, sender, store=None):
+        self.sender = sender
+        # histórico injetável; o padrão é uma lista em memória (volátil: perde-se a cada boot)
+        self.notifications = store if store is not None else []
 
-    def _send(self, to, subject, body):
+    @classmethod
+    def from_config(cls, config):
+        sender = SmtpSender(config['SMTP_HOST'], config['SMTP_PORT'], config['SMTP_USER'], config['SMTP_PASSWORD'])
+        return cls(sender)
+
+    def send_email(self, to, subject, body):
         try:
-            self.transport.send(to, subject, body)
-            return True
+            sent = self.sender.send(to, subject, body)
         except (smtplib.SMTPException, OSError):
-            logger.exception("Falha ao enviar e-mail para %s", to)
+            logger.exception('Erro ao enviar email para %s', to)
             return False
+        if sent:
+            logger.info('Email enviado para %s', to)
+        return sent
 
     def notify_task_assigned(self, user, task):
-        subject = f"Nova task atribuída: {task.title}"
-        body = (
-            f"Olá {user.name},\n\nA task '{task.title}' foi atribuída a você.\n\n"
-            f"Prioridade: {task.priority}\nStatus: {task.status}"
-        )
-        return self._send(user.email, subject, body)
+        subject = f'Nova task atribuída: {task.title}'
+        body = (f"Olá {user.name},\n\nA task '{task.title}' foi atribuída a você.\n\n"
+                f'Prioridade: {task.priority}\nStatus: {task.status}')
+        self.send_email(user.email, subject, body)
+        self.notifications.append({
+            'type': 'task_assigned',
+            'user_id': user.id,
+            'task_id': task.id,
+            'timestamp': utc_now(),
+        })
 
     def notify_task_overdue(self, user, task):
-        subject = f"Task atrasada: {task.title}"
+        subject = f'Task atrasada: {task.title}'
         body = f"Olá {user.name},\n\nA task '{task.title}' está atrasada!\n\nData limite: {task.due_date}"
-        return self._send(user.email, subject, body)
+        self.send_email(user.email, subject, body)
 
-
-def build_notification_service(config):
-    if config.get("SMTP_HOST") and config.get("SMTP_USER"):
-        transport = SmtpEmailTransport(
-            config["SMTP_HOST"], config["SMTP_PORT"], config["SMTP_USER"],
-            config["SMTP_PASSWORD"], config.get("SMTP_SENDER"),
-        )
-    else:
-        transport = LogEmailTransport()
-    return NotificationService(transport)
+    def get_notifications(self, user_id):
+        return [notification for notification in self.notifications if notification['user_id'] == user_id]

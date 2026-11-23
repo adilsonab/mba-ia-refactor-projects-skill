@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "description": "Boilerplate com código legado para refatoração",
   "main": "src/app.js",
+  "engines": {
+    "node": ">=20.17.0"
+  },
   "scripts": {
     "start": "node src/app.js"
   },
   "dependencies": {
-    "express": "^4.22.1",
+    "express": "^4.22.3",
     "sqlite3": "^6.0.1"
-  },
-  "overrides": {
-    "qs": "^6.17.1"
   }
 }

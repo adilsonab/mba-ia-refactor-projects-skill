@@ -86,13 +86,14 @@ Cada entrada tem: **severidade padrão**, **o que é**, **sinais de detecção**
 **Sinais de detecção:**
 - Serializadores (`to_dict`, `toJSON`, montagem manual de dict) contendo `password`/`senha`/`pass`.
 - Health/status retornando `secret_key`, `debug`, `db_path`, connection strings.
-- Logs com `card`, `cc`, `cvv`, número de cartão, chaves (`console.log(\`... ${cc} ... ${config.key}\`)`), ou e-mail/senha de usuário.
+- Logs com `card`, `cc`, `cvv`, número de cartão, chaves (`console.log(\`... ${cc} ... ${config.key}\`)`), ou e-mail/senha de usuário — inclusive senha ou token **gerados** pela própria aplicação ("senha gerada para admin: ...").
 - Respostas de erro com `str(e)`/`err.message`/stack trace (também AP-17).
 **Correção:** T04.
 
 ### AP-05 — Endpoint de execução arbitrária / operação destrutiva aberta
 **O que é:** rota que executa SQL/comando vindo do cliente ou que apaga/reseta dados sem nenhuma proteção.
 **Sinais de detecção:** `cursor.execute(dados["sql"])`, `eval(`, `exec(`, `child_process.exec(req...)`, rotas `/admin/query`, `/admin/reset-db`, `/debug/*` sem verificação de autenticação.
+**Nota para a Fase 3:** rota que executa SQL/código **vindo do cliente** é **removida** (passa a responder 404), nunca "restringida" — nem a admin, nem a `SELECT`, nem com `PRAGMA query_only`: SQL livre lê hashes de senha e contorna a camada Model e a matriz de acesso. A Recommendation diz "remover". Já a operação destrutiva **fixa** (ex.: `/admin/reset-db`) é mantida e passa a exigir papel admin (T16). A remoção é mudança de contrato de segurança permitida (`mvc-guidelines.md` §4) e é listada no resumo.
 **Correção:** T16.
 
 ### AP-06 — God Class / God File

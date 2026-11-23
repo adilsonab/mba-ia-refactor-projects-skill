@@ -1,5 +1,5 @@
 $ python seed.py && python -W default app.py   (sem variáveis de ambiente; log do servidor ao final)
-2026-11-23 11:11:07,015 WARNING app: SECRET_KEY não definida; usando chave aleatória (apenas desenvolvimento).
+2026-11-23 13:34:37,346 WARNING app: SECRET_KEY não definida; usando chave aleatória (tokens expiram a cada reinício).
 Seed concluído com sucesso!
   3 usuários
   4 categorias
@@ -56,94 +56,91 @@ Autorização (AP-11):
   OK   cadastro público com role=admin vira role=user
   OK   GET /users -> 403
   OK   admin autenticado define role=manager
-Correções v1.3 (AP-10 defaults seguros, AP-03 senha mínima, AP-16 cor #RRGGBB):
+Defaults seguros e correções (AP-10, AP-16 cor #RRGGBB):
   OK   CORS fechado por padrão (origem externa sem Access-Control-Allow-Origin)
-  OK   POST /users -> 400
   OK   POST /categories -> 400
   OK   PUT /categories/1 -> 400
   OK   PUT /categories/1 -> 200
   OK   POST /categories -> 201
-Resultado: 55 OK, 0 FAIL
+Resultado: 54 OK, 0 FAIL
 
 --- log do servidor ---
-2026-11-23 11:11:08,824 WARNING app: SECRET_KEY não definida; usando chave aleatória (apenas desenvolvimento).
+2026-11-23 13:34:39,166 WARNING __main__: SECRET_KEY não definida; usando chave aleatória (tokens expiram a cada reinício).
+2026-11-23 13:34:39,198 INFO __main__: Iniciando em http://127.0.0.1:5000 (debug=off)
  * Serving Flask app 'app'
  * Debug mode: off
-2026-11-23 11:11:08,898 INFO werkzeug: WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+2026-11-23 13:34:39,235 INFO werkzeug: WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
  * Running on http://127.0.0.1:5000
-2026-11-23 11:11:08,898 INFO werkzeug: Press CTRL+C to quit
-2026-11-23 11:11:09,375 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:09] "GET / HTTP/1.1" 200 -
-2026-11-23 11:11:10,140 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:10] "POST /login HTTP/1.1" 200 -
-2026-11-23 11:11:10,639 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:10] "POST /login HTTP/1.1" 200 -
-2026-11-23 11:11:11,054 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:11] "GET / HTTP/1.1" 200 -
-2026-11-23 11:11:11,473 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:11] "GET /health HTTP/1.1" 200 -
-2026-11-23 11:11:11,865 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:11] "GET /tasks HTTP/1.1" 200 -
-2026-11-23 11:11:12,301 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:12] "GET /tasks/1 HTTP/1.1" 200 -
-2026-11-23 11:11:12,697 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:12] "GET /tasks/9999 HTTP/1.1" 404 -
-2026-11-23 11:11:13,125 INFO services.task_service: Task criada: 11
-2026-11-23 11:11:13,126 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:13] "POST /tasks HTTP/1.1" 201 -
-2026-11-23 11:11:13,554 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:13] "POST /tasks HTTP/1.1" 400 -
-2026-11-23 11:11:13,919 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:13] "POST /tasks HTTP/1.1" 400 -
-2026-11-23 11:11:14,358 INFO services.task_service: Task atualizada: 1
-2026-11-23 11:11:14,358 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:14] "PUT /tasks/1 HTTP/1.1" 200 -
-2026-11-23 11:11:14,813 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:14] "PUT /tasks/1 HTTP/1.1" 400 -
-2026-11-23 11:11:15,200 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:15] "GET /tasks/search?q=login HTTP/1.1" 200 -
-2026-11-23 11:11:15,596 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:15] "GET /tasks/search?status=pending&priority=1 HTTP/1.1" 200 -
-2026-11-23 11:11:16,036 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:16] "GET /tasks/stats HTTP/1.1" 200 -
-2026-11-23 11:11:16,485 INFO services.task_service: Task deletada: 11
-2026-11-23 11:11:16,485 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:16] "DELETE /tasks/11 HTTP/1.1" 200 -
-2026-11-23 11:11:16,860 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:16] "GET /users HTTP/1.1" 200 -
-2026-11-23 11:11:17,241 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:17] "GET /users/1 HTTP/1.1" 200 -
-2026-11-23 11:11:17,638 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:17] "GET /users/9999 HTTP/1.1" 404 -
-2026-11-23 11:11:18,118 INFO services.user_service: Usuário criado: 4
-2026-11-23 11:11:18,118 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:18] "POST /users HTTP/1.1" 201 -
-2026-11-23 11:11:18,497 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:18] "POST /users HTTP/1.1" 409 -
-2026-11-23 11:11:19,012 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:19] "POST /users HTTP/1.1" 400 -
-2026-11-23 11:11:19,421 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:19] "PUT /users/2 HTTP/1.1" 200 -
-2026-11-23 11:11:19,842 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:19] "GET /users/1/tasks HTTP/1.1" 200 -
-2026-11-23 11:11:20,300 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:20] "POST /login HTTP/1.1" 200 -
-2026-11-23 11:11:20,797 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:20] "POST /login HTTP/1.1" 401 -
-2026-11-23 11:11:21,248 INFO services.user_service: Usuário deletado: 4
-2026-11-23 11:11:21,248 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:21] "DELETE /users/4 HTTP/1.1" 200 -
-2026-11-23 11:11:21,642 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:21] "GET /reports/summary HTTP/1.1" 200 -
-2026-11-23 11:11:22,037 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:22] "GET /reports/user/1 HTTP/1.1" 200 -
-2026-11-23 11:11:22,477 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:22] "GET /reports/user/9999 HTTP/1.1" 404 -
-2026-11-23 11:11:22,902 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:22] "GET /categories HTTP/1.1" 200 -
-2026-11-23 11:11:23,342 INFO services.category_service: Categoria criada: 5
-2026-11-23 11:11:23,342 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:23] "POST /categories HTTP/1.1" 201 -
-2026-11-23 11:11:23,758 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:23] "PUT /categories/5 HTTP/1.1" 200 -
-2026-11-23 11:11:24,166 INFO services.category_service: Categoria deletada: 5
-2026-11-23 11:11:24,166 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:24] "DELETE /categories/5 HTTP/1.1" 200 -
-2026-11-23 11:11:24,660 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:24] "POST /login HTTP/1.1" 200 -
-2026-11-23 11:11:25,274 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:25] "GET /tasks HTTP/1.1" 401 -
-2026-11-23 11:11:25,641 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:25] "GET /users HTTP/1.1" 401 -
-2026-11-23 11:11:26,041 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:26] "GET /users HTTP/1.1" 401 -
-2026-11-23 11:11:26,416 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:26] "GET /users HTTP/1.1" 401 -
-2026-11-23 11:11:26,804 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:26] "GET /users HTTP/1.1" 403 -
-2026-11-23 11:11:27,156 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:27] "DELETE /users/1 HTTP/1.1" 403 -
-2026-11-23 11:11:27,559 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:27] "GET /reports/summary HTTP/1.1" 403 -
-2026-11-23 11:11:27,999 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:27] "POST /categories HTTP/1.1" 403 -
-2026-11-23 11:11:28,405 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:28] "GET /users/1 HTTP/1.1" 403 -
-2026-11-23 11:11:28,816 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:28] "GET /reports/user/1 HTTP/1.1" 403 -
-2026-11-23 11:11:29,218 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:29] "GET /users/2 HTTP/1.1" 200 -
-2026-11-23 11:11:29,593 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:29] "PUT /users/2 HTTP/1.1" 403 -
-2026-11-23 11:11:29,994 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:29] "PUT /users/1 HTTP/1.1" 403 -
-2026-11-23 11:11:30,474 INFO services.user_service: Usuário criado: 4
-2026-11-23 11:11:30,474 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:30] "POST /users HTTP/1.1" 201 -
-2026-11-23 11:11:31,142 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:31] "POST /login HTTP/1.1" 200 -
-2026-11-23 11:11:31,554 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:31] "GET /users HTTP/1.1" 403 -
-2026-11-23 11:11:32,108 INFO services.user_service: Usuário criado: 5
-2026-11-23 11:11:32,108 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:32] "POST /users HTTP/1.1" 201 -
-2026-11-23 11:11:32,634 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:32] "GET / HTTP/1.1" 200 -
-2026-11-23 11:11:33,180 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:33] "POST /users HTTP/1.1" 400 -
-2026-11-23 11:11:33,598 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:33] "POST /categories HTTP/1.1" 400 -
-2026-11-23 11:11:33,974 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:33] "PUT /categories/1 HTTP/1.1" 400 -
-2026-11-23 11:11:34,374 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:34] "PUT /categories/1 HTTP/1.1" 200 -
-2026-11-23 11:11:34,772 INFO services.category_service: Categoria criada: 5
-2026-11-23 11:11:34,772 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 11:11:34] "POST /categories HTTP/1.1" 201 -
+2026-11-23 13:34:39,235 INFO werkzeug: Press CTRL+C to quit
+2026-11-23 13:34:39,709 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:39] "GET / HTTP/1.1" 200 -
+2026-11-23 13:34:40,525 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:40] "POST /login HTTP/1.1" 200 -
+2026-11-23 13:34:41,138 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:41] "POST /login HTTP/1.1" 200 -
+2026-11-23 13:34:41,582 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:41] "GET / HTTP/1.1" 200 -
+2026-11-23 13:34:42,068 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:42] "GET /health HTTP/1.1" 200 -
+2026-11-23 13:34:42,506 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:42] "GET /tasks HTTP/1.1" 200 -
+2026-11-23 13:34:42,948 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:42] "GET /tasks/1 HTTP/1.1" 200 -
+2026-11-23 13:34:43,404 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:43] "GET /tasks/9999 HTTP/1.1" 404 -
+2026-11-23 13:34:43,969 INFO services.task_service: Task criada: 11 - Nova task
+2026-11-23 13:34:43,969 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:43] "POST /tasks HTTP/1.1" 201 -
+2026-11-23 13:34:44,442 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:44] "POST /tasks HTTP/1.1" 400 -
+2026-11-23 13:34:44,866 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:44] "POST /tasks HTTP/1.1" 400 -
+2026-11-23 13:34:45,394 INFO services.task_service: Task atualizada: 1
+2026-11-23 13:34:45,395 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:45] "PUT /tasks/1 HTTP/1.1" 200 -
+2026-11-23 13:34:45,823 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:45] "PUT /tasks/1 HTTP/1.1" 400 -
+2026-11-23 13:34:46,269 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:46] "GET /tasks/search?q=login HTTP/1.1" 200 -
+2026-11-23 13:34:46,747 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:46] "GET /tasks/search?status=pending&priority=1 HTTP/1.1" 200 -
+2026-11-23 13:34:47,184 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:47] "GET /tasks/stats HTTP/1.1" 200 -
+2026-11-23 13:34:47,653 INFO services.task_service: Task deletada: 11
+2026-11-23 13:34:47,653 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:47] "DELETE /tasks/11 HTTP/1.1" 200 -
+2026-11-23 13:34:48,111 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:48] "GET /users HTTP/1.1" 200 -
+2026-11-23 13:34:48,583 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:48] "GET /users/1 HTTP/1.1" 200 -
+2026-11-23 13:34:49,042 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:49] "GET /users/9999 HTTP/1.1" 404 -
+2026-11-23 13:34:49,601 INFO services.user_service: Usuário criado: 4
+2026-11-23 13:34:49,602 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:49] "POST /users HTTP/1.1" 201 -
+2026-11-23 13:34:50,006 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:50] "POST /users HTTP/1.1" 409 -
+2026-11-23 13:34:50,445 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:50] "POST /users HTTP/1.1" 400 -
+2026-11-23 13:34:51,010 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:51] "PUT /users/2 HTTP/1.1" 200 -
+2026-11-23 13:34:51,469 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:51] "GET /users/1/tasks HTTP/1.1" 200 -
+2026-11-23 13:34:51,971 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:51] "POST /login HTTP/1.1" 200 -
+2026-11-23 13:34:52,503 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:52] "POST /login HTTP/1.1" 401 -
+2026-11-23 13:34:53,063 INFO services.user_service: Usuário deletado: 4
+2026-11-23 13:34:53,063 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:53] "DELETE /users/4 HTTP/1.1" 200 -
+2026-11-23 13:34:53,587 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:53] "GET /reports/summary HTTP/1.1" 200 -
+2026-11-23 13:34:54,044 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:54] "GET /reports/user/1 HTTP/1.1" 200 -
+2026-11-23 13:34:54,506 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:54] "GET /reports/user/9999 HTTP/1.1" 404 -
+2026-11-23 13:34:55,031 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:55] "GET /categories HTTP/1.1" 200 -
+2026-11-23 13:34:55,503 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:55] "POST /categories HTTP/1.1" 201 -
+2026-11-23 13:34:55,980 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:55] "PUT /categories/5 HTTP/1.1" 200 -
+2026-11-23 13:34:56,472 INFO services.category_service: Categoria deletada: 5
+2026-11-23 13:34:56,472 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:56] "DELETE /categories/5 HTTP/1.1" 200 -
+2026-11-23 13:34:57,023 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:57] "POST /login HTTP/1.1" 200 -
+2026-11-23 13:34:57,617 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:57] "GET /tasks HTTP/1.1" 401 -
+2026-11-23 13:34:58,068 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:58] "GET /users HTTP/1.1" 401 -
+2026-11-23 13:34:58,566 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:58] "GET /users HTTP/1.1" 401 -
+2026-11-23 13:34:59,081 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:59] "GET /users HTTP/1.1" 401 -
+2026-11-23 13:34:59,487 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:59] "GET /users HTTP/1.1" 403 -
+2026-11-23 13:34:59,968 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:34:59] "DELETE /users/1 HTTP/1.1" 403 -
+2026-11-23 13:35:00,424 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:00] "GET /reports/summary HTTP/1.1" 403 -
+2026-11-23 13:35:00,848 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:00] "POST /categories HTTP/1.1" 403 -
+2026-11-23 13:35:01,307 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:01] "GET /users/1 HTTP/1.1" 403 -
+2026-11-23 13:35:01,792 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:01] "GET /reports/user/1 HTTP/1.1" 403 -
+2026-11-23 13:35:02,222 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:02] "GET /users/2 HTTP/1.1" 200 -
+2026-11-23 13:35:02,682 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:02] "PUT /users/2 HTTP/1.1" 403 -
+2026-11-23 13:35:03,123 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:03] "PUT /users/1 HTTP/1.1" 403 -
+2026-11-23 13:35:03,696 INFO services.user_service: Usuário criado: 4
+2026-11-23 13:35:03,696 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:03] "POST /users HTTP/1.1" 201 -
+2026-11-23 13:35:04,429 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:04] "POST /login HTTP/1.1" 200 -
+2026-11-23 13:35:04,822 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:04] "GET /users HTTP/1.1" 403 -
+2026-11-23 13:35:05,424 INFO services.user_service: Usuário criado: 5
+2026-11-23 13:35:05,424 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:05] "POST /users HTTP/1.1" 201 -
+2026-11-23 13:35:06,064 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:06] "GET / HTTP/1.1" 200 -
+2026-11-23 13:35:06,728 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:06] "POST /categories HTTP/1.1" 400 -
+2026-11-23 13:35:07,283 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:07] "PUT /categories/1 HTTP/1.1" 400 -
+2026-11-23 13:35:07,727 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:07] "PUT /categories/1 HTTP/1.1" 200 -
+2026-11-23 13:35:08,234 INFO werkzeug: 127.0.0.1 - - [23/Nov/2026 13:35:08] "POST /categories HTTP/1.1" 201 -
 
 --- auditoria de dependências ---
 $ pip-audit -r requirements.txt
-  Requested location: "C:\Users\ADILSO~1\AppData\Local\Temp\tmp23r9203_\Scripts\python.exe"
-  Actual location:    "C:\Users\adilsonbarbosa\AppData\Local\Temp\tmp23r9203_\Scripts\python.exe"
+  Requested location: "C:\Users\ADILSO~1\AppData\Local\Temp\tmpg_sgywjm\Scripts\python.exe"
+  Actual location:    "C:\Users\adilsonbarbosa\AppData\Local\Temp\tmpg_sgywjm\Scripts\python.exe"
 No known vulnerabilities found

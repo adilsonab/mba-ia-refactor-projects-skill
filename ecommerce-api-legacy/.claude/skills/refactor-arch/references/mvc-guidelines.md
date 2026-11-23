@@ -69,12 +69,13 @@ Devem permanecer **idênticos**:
 - Paths, métodos HTTP e parâmetros de rota/query.
 - Nomes dos campos de entrada (mesmo ruins — ex.: `usr`, `eml`, `c_id`: mapeie para nomes claros **dentro** do controller).
 - Estrutura das respostas de sucesso (mesmas chaves, mesmo envelope, ex.: `{"dados": ..., "sucesso": true}`) e status HTTP de sucesso e de erro esperados.
+- Credenciais de desenvolvimento do seed original (mesmo e-mail e senha, agora com hash) — nunca troque por senha aleatória escrita no log.
 - Comando de execução documentado (`python app.py`, `npm start`), porta padrão e scripts auxiliares (ex.: `seed.py` que importa `from app import app, db` deve continuar funcionando).
 
 Mudanças de contrato **permitidas** (por segurança) — devem ser listadas no resumo da Fase 3:
 - Remover campos sensíveis das respostas (`password`, `senha`, hash, `secret_key`, `debug`, `db_path`).
 - Trocar mensagens de erro internas (`str(e)`) por mensagens genéricas, **mantendo o status HTTP**.
-- Remover endpoints de execução arbitrária (AP-05, ex.: `/admin/query`). Endpoints destrutivos administrativos (ex.: reset) passam a exigir papel admin.
+- Remover endpoints de execução arbitrária (AP-05, ex.: `/admin/query` → 404). Remover mesmo: não mantê-los "só para admin" nem "só SELECT". Endpoints destrutivos administrativos (ex.: reset) passam a exigir papel admin.
 - Transformar 500 causados por input inválido em 400.
 - Trocar um sucesso falso por erro: operação sobre recurso inexistente que respondia 200 (ex.: `PUT /pedidos/999/status`, `DELETE /users/999`) passa a responder **404**; identificador de rota com formato inválido → **400**.
 - **Defaults seguros do AP-10 (obrigatório, nunca vai para "Pending"):** debug desligado, bind em `127.0.0.1` por padrão e **CORS fechado por padrão** (sem `CORS_ORIGINS`, nenhuma origem externa recebe `Access-Control-Allow-Origin`). O comportamento antigo continua disponível só por configuração explícita (`HOST=0.0.0.0`, `CORS_ORIGINS=https://app.exemplo.com` ou `*`).

@@ -1,70 +1,69 @@
-from sqlalchemy import func, select
+import hashlib
+import hmac
 
-from config.constants import ADMIN_ROLE
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from database import db
-from utils.helpers import utcnow
-from utils.security import hash_password, verify_password
+from utils.helpers import ADMIN_ROLE, DEFAULT_ROLE, utc_now
+
+_MODERN_HASH_PREFIXES = ('scrypt:', 'pbkdf2:')
 
 
 class User(db.Model):
-    __tablename__ = "users"
+    __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(50), default="user")
+    role = db.Column(db.String(50), default=DEFAULT_ROLE)
     active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
-    # Excluir um usuario exclui as tasks dele (mesmo comportamento anterior, agora declarado no model).
-    tasks = db.relationship("Task", back_populates="user", cascade="save-update, merge, delete")
+    # tasks pertencem ao usuário: excluídas junto, na mesma transação
+    tasks = db.relationship('Task', back_populates='user', cascade='all, delete-orphan')
 
     def to_dict(self):
-        # O hash da senha nunca e serializado.
+        """Representação pública (nunca inclui o hash da senha)."""
         return {
-            "id": self.id,
-            "name": self.name,
-            "email": self.email,
-            "role": self.role,
-            "active": self.active,
-            "created_at": str(self.created_at),
+            'id': self.id,
+            'name': self.name,
+            'email': self.email,
+            'role': self.role,
+            'active': self.active,
+            'created_at': str(self.created_at),
         }
 
-    def set_password(self, raw_password):
-        self.password = hash_password(raw_password)
+    # ---------- senha ----------
+    def set_password(self, raw):
+        self.password = generate_password_hash(raw)
 
-    def check_password(self, raw_password):
-        """Confere a senha; hashes legados (MD5) sao migrados para o algoritmo atual."""
-        ok, needs_rehash = verify_password(self.password, raw_password)
-        if ok and needs_rehash:
-            self.set_password(raw_password)
-        return ok
+    def check_password(self, raw):
+        stored = self.password or ''
+        if stored.startswith(_MODERN_HASH_PREFIXES):
+            return check_password_hash(stored, raw)
+        legacy = hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()  # migração de hashes MD5 antigos
+        return hmac.compare_digest(stored, legacy)
+
+    def password_needs_rehash(self):
+        return not (self.password or '').startswith(_MODERN_HASH_PREFIXES)
 
     def is_admin(self):
         return self.role == ADMIN_ROLE
 
+    # ---------- acesso a dados ----------
     @classmethod
     def get_by_id(cls, user_id):
         return db.session.get(cls, user_id)
 
     @classmethod
     def get_by_email(cls, email):
-        return db.session.scalars(select(cls).where(cls.email == email)).first()
+        return db.session.execute(db.select(cls).filter_by(email=email)).scalar_one_or_none()
 
     @classmethod
     def list_all(cls):
-        return db.session.scalars(select(cls).order_by(cls.id)).all()
+        return db.session.execute(db.select(cls).order_by(cls.id)).scalars().all()
 
     @classmethod
-    def count(cls):
-        return db.session.scalar(select(func.count(cls.id)))
-
-    def save(self):
-        db.session.add(self)
-        db.session.commit()
-        return self
-
-    def delete(self):
-        db.session.delete(self)  # o cascade remove as tasks na mesma transacao
-        db.session.commit()
+    def count_all(cls):
+        return db.session.scalar(db.select(db.func.count(cls.id)))

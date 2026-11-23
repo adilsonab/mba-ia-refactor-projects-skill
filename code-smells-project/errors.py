@@ -1,4 +1,4 @@
-"""Domain exceptions shared by every layer; translated to HTTP by middlewares/error_handler.py."""
+"""Exceções de domínio; o error handler central (middlewares/error_handler.py) as converte em HTTP."""
 
 
 class AppError(Exception):
@@ -7,16 +7,12 @@ class AppError(Exception):
     def __init__(self, message, status_code=None):
         super().__init__(message)
         self.message = message
-        if status_code is not None:
+        if status_code:
             self.status_code = status_code
 
 
 class ValidationError(AppError):
     status_code = 400
-
-
-class NotFoundError(AppError):
-    status_code = 404
 
 
 class UnauthorizedError(AppError):
@@ -25,3 +21,7 @@ class UnauthorizedError(AppError):
 
 class ForbiddenError(AppError):
     status_code = 403
+
+
+class NotFoundError(AppError):
+    status_code = 404

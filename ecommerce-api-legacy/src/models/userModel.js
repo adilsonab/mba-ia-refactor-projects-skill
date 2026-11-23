@@ -1,21 +1,16 @@
 function createUserModel(db) {
     return {
-        findById(id) {
-            return db.get('SELECT id FROM users WHERE id = ?', [id]);
-        },
-
-        findByEmail(email) {
-            return db.get('SELECT id FROM users WHERE email = ?', [email]);
-        },
-
-        async create({ name, email, passwordHash }) {
-            const { lastID } = await db.run('INSERT INTO users (name, email, pass) VALUES (?, ?, ?)',
-                [name, email, passwordHash]);
+        findById: (id) => db.get('SELECT id, name, email, role FROM users WHERE id = ?', [id]),
+        // Inclui o hash: uso exclusivo da verificação de credenciais, nunca serializado.
+        findCredentialsByEmail: (email) => db.get('SELECT id, name, email, role, pass FROM users WHERE email = ?', [email]),
+        async create({ name, email, passwordHash, role }) {
+            const { lastID } = await db.run('INSERT INTO users (name, email, pass, role) VALUES (?, ?, ?, ?)',
+                [name, email, passwordHash, role]);
             return lastID;
         },
-
-        deleteById(id) {
-            return db.run('DELETE FROM users WHERE id = ?', [id]);
+        async deleteById(id) {
+            const { changes } = await db.run('DELETE FROM users WHERE id = ?', [id]);
+            return changes > 0;
         },
     };
 }

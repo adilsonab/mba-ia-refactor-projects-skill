@@ -60,7 +60,7 @@ Escala de severidade usada (definida no enunciado do desafio):
 ## Projeto 3 — task-manager-api (Python/Flask, API de Task Manager)
 
 **Stack:** Python 3 + Flask 3.0.0 + Flask-SQLAlchemy 3.1.1 (SQLAlchemy 2.x) + flask-cors + SQLite (`instance/tasks.db`).
-**Estrutura:** já separada em `models/`, `routes/` (Blueprints), `services/`, `utils/` — 13 arquivos `.py`, ~1.150 linhas. Tabelas: `users`, `tasks`, `categories`.
+**Estrutura:** já separada em `models/`, `routes/` (Blueprints), `services/`, `utils/` — 15 arquivos `.py`, 1.158 linhas. Tabelas: `users`, `tasks`, `categories`.
 **Baseline:** 32/32 chamadas do smoke test (`scripts/smoke-project-3.sh`) respondem como esperado antes da refatoração (após `python seed.py`).
 
 | # | Severidade | Problema | Local | Por que é relevante |

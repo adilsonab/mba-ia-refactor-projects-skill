@@ -1,14 +1,10 @@
 function createEnrollmentModel(db) {
     return {
         async create(userId, courseId) {
-            const { lastID } = await db.run('INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)',
-                [userId, courseId]);
+            const { lastID } = await db.run('INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)', [userId, courseId]);
             return lastID;
         },
-
-        deleteByUser(userId) {
-            return db.run('DELETE FROM enrollments WHERE user_id = ?', [userId]);
-        },
+        deleteByUser: (userId) => db.run('DELETE FROM enrollments WHERE user_id = ?', [userId]),
     };
 }
 

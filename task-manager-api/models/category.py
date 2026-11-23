@@ -1,28 +1,25 @@
-from sqlalchemy import func, select
-
 from database import db
-from utils.helpers import utcnow
+from utils.helpers import DEFAULT_COLOR, utc_now
 
 
 class Category(db.Model):
-    __tablename__ = "categories"
+    __tablename__ = 'categories'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.String(300), nullable=True)
-    color = db.Column(db.String(7), default="#000000")
-    created_at = db.Column(db.DateTime, default=utcnow)
+    color = db.Column(db.String(7), default=DEFAULT_COLOR)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
-    # Sem cascade de delete: ao excluir a categoria, o ORM anula category_id das tasks (comportamento original).
-    tasks = db.relationship("Task", back_populates="category")
+    tasks = db.relationship('Task', back_populates='category')
 
     def to_dict(self):
         return {
-            "id": self.id,
-            "name": self.name,
-            "description": self.description,
-            "color": self.color,
-            "created_at": str(self.created_at),
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'color': self.color,
+            'created_at': str(self.created_at),
         }
 
     @classmethod
@@ -31,17 +28,19 @@ class Category(db.Model):
 
     @classmethod
     def list_all(cls):
-        return db.session.scalars(select(cls).order_by(cls.id)).all()
+        return db.session.execute(db.select(cls).order_by(cls.id)).scalars().all()
 
     @classmethod
-    def count(cls):
-        return db.session.scalar(select(func.count(cls.id)))
+    def count_all(cls):
+        return db.session.scalar(db.select(db.func.count(cls.id)))
 
-    def save(self):
-        db.session.add(self)
-        db.session.commit()
-        return self
-
-    def delete(self):
-        db.session.delete(self)
-        db.session.commit()
+    def delete_unlinking_tasks(self):
+        """Desvincula as tasks (category_id = NULL) e remove a categoria na mesma transação."""
+        from models.task import Task  # import local: evita ciclo entre models
+        try:
+            db.session.execute(db.update(Task).where(Task.category_id == self.id).values(category_id=None))
+            db.session.delete(self)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise

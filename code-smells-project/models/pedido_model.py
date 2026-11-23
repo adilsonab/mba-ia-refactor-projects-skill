@@ -1,49 +1,38 @@
-"""Data access for `pedidos` and `itens_pedido` (transactions, JOINs and aggregations)."""
-from config.constants import PRODUTO_DESCONHECIDO, STATUS_PEDIDO_INICIAL
-from database import get_db
+"""Acesso a dados de pedidos e itens (criação transacional, listagem sem N+1, agregação)."""
+from config.constants import STATUS_INICIAL_PEDIDO
+from database import get_db, transaction
+from errors import ValidationError
+from models import produto_model
 
 
-class EstoqueInsuficiente(Exception):
-    def __init__(self, produto_id):
-        super().__init__(produto_id)
-        self.produto_id = produto_id
+def criar_com_itens(usuario_id, itens, total):
+    """Grava pedido + itens + débito de estoque em uma única transação.
 
-
-def criar_com_itens(usuario_id, itens, total, precos):
-    """Inserts the order, its items and debits stock atomically.
-
-    Stock is debited with a conditional UPDATE, so concurrent orders can't oversell.
-    Raises EstoqueInsuficiente (and rolls everything back) when stock runs out.
+    `itens`: lista de dicts com produto_id, quantidade, preco_unitario e nome.
     """
-    conn = get_db()
-    with conn:  # commit on success, rollback on any exception
+    with transaction() as conn:
         cursor = conn.execute(
             "INSERT INTO pedidos (usuario_id, status, total) VALUES (?, ?, ?)",
-            (usuario_id, STATUS_PEDIDO_INICIAL, total),
+            (usuario_id, STATUS_INICIAL_PEDIDO, total),
         )
         pedido_id = cursor.lastrowid
         for item in itens:
-            produto_id, quantidade = item["produto_id"], item["quantidade"]
-            debito = conn.execute(
-                "UPDATE produtos SET estoque = estoque - ? WHERE id = ? AND ativo = 1 AND estoque >= ?",
-                (quantidade, produto_id, quantidade),
-            )
-            if debito.rowcount == 0:
-                raise EstoqueInsuficiente(produto_id)
+            if not produto_model.debitar_estoque(conn, item["produto_id"], item["quantidade"]):
+                raise ValidationError("Estoque insuficiente para " + item["nome"])
             conn.execute(
                 "INSERT INTO itens_pedido (pedido_id, produto_id, quantidade, preco_unitario) VALUES (?, ?, ?, ?)",
-                (pedido_id, produto_id, quantidade, precos[produto_id]),
+                (pedido_id, item["produto_id"], item["quantidade"], item["preco_unitario"]),
             )
     return pedido_id
 
 
-def listar_com_itens(usuario_id=None):
-    """Orders with their items in a single JOIN query (optionally filtered by user)."""
+def listar(usuario_id=None):
+    """Pedidos com itens em uma única query (LEFT JOIN), opcionalmente filtrados por usuário."""
     rows = get_db().execute(
         """
         SELECT p.id, p.usuario_id, p.status, p.total, p.criado_em,
-               i.produto_id, i.quantidade, i.preco_unitario, pr.nome AS produto_nome,
-               i.id AS item_id
+               i.id AS item_id, i.produto_id, i.quantidade, i.preco_unitario,
+               pr.nome AS produto_nome
         FROM pedidos p
         LEFT JOIN itens_pedido i ON i.pedido_id = p.id
         LEFT JOIN produtos pr ON pr.id = i.produto_id
@@ -68,22 +57,24 @@ def listar_com_itens(usuario_id=None):
         if row["item_id"] is not None:
             pedido["itens"].append({
                 "produto_id": row["produto_id"],
-                "produto_nome": row["produto_nome"] if row["produto_nome"] is not None else PRODUTO_DESCONHECIDO,
+                "produto_nome": row["produto_nome"] if row["produto_nome"] is not None else "Desconhecido",
                 "quantidade": row["quantidade"],
                 "preco_unitario": row["preco_unitario"],
             })
     return list(pedidos.values())
 
 
-def atualizar_status(pedido_id, status):
-    conn = get_db()
-    with conn:
-        cursor = conn.execute("UPDATE pedidos SET status = ? WHERE id = ?", (status, pedido_id))
-    return cursor.rowcount
+def existe(pedido_id):
+    return get_db().execute("SELECT 1 FROM pedidos WHERE id = ?", (pedido_id,)).fetchone() is not None
+
+
+def atualizar_status(pedido_id, novo_status):
+    cursor = get_db().execute("UPDATE pedidos SET status = ? WHERE id = ?", (novo_status, pedido_id))
+    return cursor.rowcount > 0
 
 
 def resumo_vendas(status_pendente, status_aprovado, status_cancelado):
-    """Order count, revenue and count per status in a single query."""
+    """Todas as agregações do relatório em uma única query."""
     row = get_db().execute(
         """
         SELECT COUNT(*) AS total_pedidos,

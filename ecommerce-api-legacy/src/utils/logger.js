@@ -1,8 +1,17 @@
-// Logger mínimo com níveis. Nunca registre cartões, senhas ou chaves.
-const logger = {
-    info: (...args) => console.log('[INFO]', ...args),
-    warn: (...args) => console.warn('[WARN]', ...args),
-    error: (...args) => console.error('[ERROR]', ...args),
-};
+const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
 
-module.exports = logger;
+function createLogger(level = 'info') {
+    const threshold = LEVELS[level] ?? LEVELS.info;
+    const emit = (name, stream) => (...args) => {
+        if (LEVELS[name] < threshold) return;
+        stream(`${new Date().toISOString()} [${name.toUpperCase()}]`, ...args);
+    };
+    return {
+        debug: emit('debug', console.log),
+        info: emit('info', console.log),
+        warn: emit('warn', console.warn),
+        error: emit('error', console.error),
+    };
+}
+
+module.exports = { createLogger };

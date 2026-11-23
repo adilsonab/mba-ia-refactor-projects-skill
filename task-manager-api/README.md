@@ -1,6 +1,6 @@
 # task-manager-api
 
-API de Task Manager em Python/Flask usada como entrada do desafio `refactor-arch`. Diferente dos outros projetos, este já possui alguma separação de camadas (`models/`, `routes/`, `services/`, `utils/`), mas ainda contém problemas arquiteturais e de qualidade.
+API de Task Manager em Python/Flask usada como entrada do desafio `refactor-arch`, organizada em camadas MVC (`config/`, `models/`, `services/`, `controllers/`, `routes/`, `middlewares/`, `utils/`).
 
 ## Como rodar
 
@@ -10,37 +10,31 @@ python seed.py
 python app.py
 ```
 
+A aplicação sobe em `http://localhost:5000`. O `seed.py` popula o banco SQLite (`tasks.db`) com usuários, categorias e tasks de exemplo — **rode-o antes do primeiro boot**, caso contrário os endpoints vão retornar listas vazias.
+
 ## Configuração
 
-Toda a configuração vem de variáveis de ambiente (ou de um arquivo `.env`; veja `.env.example`): `SECRET_KEY`, `TOKEN_MAX_AGE` (validade do token, padrão 8 h), `DATABASE_URL`, `FLASK_DEBUG` (desligado por padrão), `HOST` (padrão `127.0.0.1`; use `0.0.0.0` para expor na rede), `PORT`, `CORS_ORIGINS`, `LOG_LEVEL` e `SMTP_*`.
+Variáveis de ambiente (ou arquivo `.env`, veja `.env.example`). Defaults seguros:
 
-**CORS fechado por padrão:** sem `CORS_ORIGINS`, nenhum site de outra origem consegue chamar a API pelo navegador (a resposta não traz `Access-Control-Allow-Origin`). Para liberar um front-end: `CORS_ORIGINS=https://app.exemplo.com`. Clientes fora do navegador (curl, apps, outros servidores) não são afetados.
-
-Regras de entrada: senha com no mínimo 8 caracteres em novos cadastros e trocas de senha; `color` de categoria no formato `#RRGGBB`.
+| Variável | Default | Observação |
+|---|---|---|
+| `SECRET_KEY` | aleatória por boot (com aviso) | defina em produção; assina os tokens |
+| `TOKEN_MAX_AGE` | `3600` | validade do token em segundos |
+| `FLASK_DEBUG` | `0` | `1` só em desenvolvimento |
+| `HOST` / `PORT` | `127.0.0.1` / `5000` | `HOST=0.0.0.0` para expor na rede |
+| `CORS_ORIGINS` | vazio (CORS fechado) | lista separada por vírgula ou `*` |
+| `DATABASE_URL` | `sqlite:///tasks.db` | |
 
 ## Autenticação
 
-`POST /login` devolve em `token` um token assinado (HMAC com `SECRET_KEY`, com expiração) — não existe mais o `fake-jwt-token-<id>`. Envie-o como `Authorization: Bearer <token>`. O token carrega só o id; papel e status (`active`) são relidos do banco a cada requisição.
+1. Faça login: `POST /login` com `{"email": "joao@email.com", "password": "1234"}` (admin do seed; também `maria@email.com`/`abcd` e `pedro@email.com`/`pass`).
+2. Envie o `token` retornado em `Authorization: Bearer <token>`.
 
-**Papel definido pelo servidor:** o cadastro público (`POST /users`) sempre cria `role = "user"`, mesmo que o corpo envie `"role": "admin"`. Só um admin autenticado pode escolher o papel no cadastro ou alterar `role`/`active` em `PUT /users/<id>`.
-
-| Acesso | Rotas |
+| Acesso | Endpoints |
 |---|---|
-| Público | `GET /`, `GET /health`, `POST /users`, `POST /login` |
-| Autenticado | `/tasks` (CRUD, `search`, `stats`), `GET /categories` |
-| Autenticado (dono ou admin) | `GET /users/<id>`, `PUT /users/<id>`, `GET /users/<id>/tasks`, `GET /reports/user/<id>` |
-| Admin | `GET /users`, `DELETE /users/<id>`, `GET /reports/summary`, `POST/PUT/DELETE /categories` |
+| Público | `GET /`, `GET /health`, `POST /login`, `POST /users` (cadastro sempre com papel `user`) |
+| Autenticado | `/tasks` (todas as operações), `/tasks/search`, `/tasks/stats`, `GET /categories` |
+| Dono ou admin | `GET/PUT /users/<id>`, `GET /users/<id>/tasks`, `GET /reports/user/<id>` |
+| Admin | `GET /users`, `DELETE /users/<id>`, alterar `role`/`active`, definir `role` no cadastro, `POST/PUT/DELETE /categories`, `GET /reports/summary` |
 
-Sem token ou com token inválido/expirado → `401`; sem permissão → `403`. Admin de desenvolvimento do seed: `joao@email.com` / `1234` (senhas do seed são fracas de propósito e servem só para desenvolvimento; elas são gravadas com hash).
-
-```bash
-TOKEN=$(curl -s -X POST localhost:5000/login -H "Content-Type: application/json" \
-  -d '{"email":"joao@email.com","password":"1234"}' | python -c "import sys,json;print(json.load(sys.stdin)['token'])")
-curl -H "Authorization: Bearer $TOKEN" localhost:5000/users
-```
-
-## Estrutura
-
-`app.py` (composition root, `create_app`) → `routes/` (blueprints) → `controllers/` (fluxo HTTP + validação) → `services/` (regras de negócio) → `models/` (entidades + consultas). Serialização em `views/`, erros centralizados em `middlewares/error_handler.py`, autenticação/autorização em `middlewares/auth.py` + `services/auth_service.py`, configuração em `config/`.
-
-A aplicação sobe em `http://127.0.0.1:5000`. O `seed.py` popula o banco SQLite (`tasks.db`) com usuários, categorias e tasks de exemplo — **rode-o antes do primeiro boot**, caso contrário os endpoints vão retornar listas vazias.
+Sem token ou com token inválido/expirado → `401`; sem permissão → `403`.

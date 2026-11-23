@@ -9,44 +9,47 @@ pip install -r requirements.txt
 python app.py
 ```
 
-A aplicação sobe em `http://127.0.0.1:5000` (só local; para expor na rede use `HOST=0.0.0.0`). O banco SQLite (`loja.db`) é criado automaticamente no primeiro boot, já com produtos e usuários de exemplo (senhas armazenadas com hash).
+A aplicação sobe em `http://127.0.0.1:5000`. O banco SQLite (`loja.db`) é criado automaticamente no primeiro boot, já com produtos e usuários de exemplo.
 
-## Configuração (variáveis de ambiente)
-
-Veja `.env.example`. Principais: `SECRET_KEY` (sem ela, uma chave aleatória é gerada a cada boot), `FLASK_DEBUG=1` para modo debug (desligado por padrão), `HOST` (padrão `127.0.0.1`), `PORT`, `DATABASE_PATH`, `CORS_ORIGINS` e `TOKEN_MAX_AGE` (validade do token de acesso, padrão 8 h).
-
-**CORS fechado por padrão:** sem `CORS_ORIGINS`, nenhum site de outra origem consegue chamar a API pelo navegador (a resposta não traz `Access-Control-Allow-Origin`). Para liberar um front-end, defina a lista de origens: `CORS_ORIGINS=https://loja.exemplo.com,https://admin.exemplo.com`. Clientes fora do navegador (curl, apps, outros servidores) não são afetados.
-
-**Exclusão de produto:** `DELETE /produtos/<id>` faz *soft delete* (`ativo = 0`). O produto some do catálogo e não pode mais ser pedido, mas o histórico de pedidos mantém o nome dele.
-
-## Autenticação
-
-`POST /login` devolve um token assinado (HMAC com `SECRET_KEY`, com expiração) em `dados.token`. Envie-o como `Authorization: Bearer <token>`. O token carrega só o id do usuário; o papel (`tipo`) é sempre relido do banco. O cadastro público (`POST /usuarios`) sempre cria `tipo = "cliente"`, mesmo que o corpo envie outro valor.
-
-| Acesso | Rotas |
-|---|---|
-| Público | `GET /`, `GET /health`, `GET /produtos`, `GET /produtos/busca`, `GET /produtos/<id>`, `POST /usuarios`, `POST /login` |
-| Autenticado (dono ou admin) | `GET /usuarios/<id>`, `POST /pedidos` (o `usuario_id` precisa ser o do token), `GET /pedidos/usuario/<id>` |
-| Admin | `POST/PUT/DELETE /produtos`, `GET /usuarios`, `GET /pedidos`, `PUT /pedidos/<id>/status`, `GET /relatorios/vendas`, `POST /admin/reset-db` |
-
-Sem token ou com token inválido/expirado → `401`; sem permissão → `403`. Admin de desenvolvimento do seed: `admin@loja.com` / `admin123`.
-
-```bash
-TOKEN=$(curl -s -X POST localhost:5000/login -H "Content-Type: application/json" \
-  -d '{"email":"admin@loja.com","senha":"admin123"}' | python -c "import sys,json;print(json.load(sys.stdin)['dados']['token'])")
-curl -H "Authorization: Bearer $TOKEN" localhost:5000/relatorios/vendas
-```
+Configuração por variáveis de ambiente (veja `.env.example`). Os defaults são seguros: debug desligado, bind em `127.0.0.1`, CORS fechado (nenhuma origem externa) e `SECRET_KEY` aleatória quando não definida. Para expor na rede use `HOST=0.0.0.0`; para liberar origens de browser use `CORS_ORIGINS=https://app.exemplo.com`.
 
 ## Estrutura
 
 ```
-app.py              # composition root (create_app)
-config/             # settings (ambiente) e constantes de negócio
-database.py         # conexão por requisição, schema, seed e migração de senhas
-errors.py           # exceções de domínio
-models/             # acesso a dados (SQL parametrizado)
-services/           # regras de negócio (pedidos, relatório, usuários, notificações)
-controllers/        # fluxo HTTP e validação de entrada
-views/              # rotas e serializers
-middlewares/        # tratamento centralizado de erros e autenticação/autorização (auth.py)
+app.py            composition root (create_app)
+config/           settings (ambiente) e constantes de negócio
+database.py       conexão por requisição e transações
+models/           acesso a dados (SQL parametrizado), hash de senha, seed
+services/         regras de negócio (pedidos, relatório, auth, notificações)
+controllers/      fluxo HTTP e validação de entrada
+routes/           mapeamento METHOD /path -> controller (matriz de acesso)
+middlewares/      autenticação/autorização e error handler central
 ```
+
+## Autenticação
+
+`POST /login` com `{"email": "...", "senha": "..."}` retorna, além de `dados`, um campo `token` (assinado, expira em `TOKEN_EXPIRES_SECONDS`, padrão 3600s). Envie-o nas rotas protegidas:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://127.0.0.1:5000/usuarios
+```
+
+Sem token ou com token inválido → `401`; sem permissão → `403`.
+
+| Acesso | Endpoints |
+|---|---|
+| Público | `GET /`, `GET /health`, `GET /produtos`, `GET /produtos/busca`, `GET /produtos/<id>`, `POST /usuarios`, `POST /login` |
+| Autenticado (dono ou admin) | `GET /usuarios/<id>`, `GET /pedidos/usuario/<id>`, `POST /pedidos` (`usuario_id` deve ser o do token; se omitido, usa o do token) |
+| Admin | `POST/PUT/DELETE /produtos...`, `GET /usuarios`, `GET /pedidos`, `PUT /pedidos/<id>/status`, `GET /relatorios/vendas`, `POST /admin/reset-db` |
+
+O cadastro público sempre cria usuários com tipo `cliente`. `POST /admin/query` foi removido.
+
+### Credenciais de desenvolvimento (seed)
+
+Somente para desenvolvimento local, gravadas com hash:
+
+| Email | Senha | Tipo |
+|---|---|---|
+| admin@loja.com | admin123 | admin |
+| joao@email.com | 123456 | cliente |
+| maria@email.com | senha123 | cliente |

@@ -1,56 +1,58 @@
-from flask import jsonify
+from flask import g, jsonify
 
-from config.constants import DEFAULT_ROLE
-from controllers import validators
-from middlewares.auth import ensure_admin, ensure_self_or_admin, optional_user
+from controllers import serializers, validators
+from middlewares.auth import ensure_self_or_admin, optional_user
 from services import auth_service, user_service
-from views import serializers
+from utils.errors import ForbiddenError
+from utils.helpers import DEFAULT_ROLE, utc_now
 
-# Campos que só um administrador pode definir ou alterar (papel sempre decidido pelo servidor).
-PRIVILEGED_USER_FIELDS = {"role", "active"}
+ADMIN_ONLY_FIELDS = {'role', 'active'}
 
 
 def list_users():
-    return jsonify(serializers.user_list(user_service.list_users_with_task_counts())), 200
+    rows = user_service.list_users_with_task_count()
+    return jsonify([serializers.user_with_task_count(user, count) for user, count in rows]), 200
 
 
 def get_user(user_id):
     ensure_self_or_admin(user_id)
     user = user_service.get_user(user_id)
-    return jsonify(serializers.user_detail(user, user_service.get_user_tasks(user))), 200
+    data = user.to_dict()
+    data['tasks'] = [task.to_dict() for task in user_service.list_user_tasks(user_id)]
+    return jsonify(data), 200
 
 
 def create_user():
     fields = validators.user_create_payload(validators.json_body())
     caller = optional_user()
     if caller is None or not caller.is_admin():
-        fields["role"] = DEFAULT_ROLE  # cadastro público nunca escolhe o próprio papel
-    user = user_service.create_user(**fields)
-    return jsonify(user.to_dict()), 201
+        fields['role'] = DEFAULT_ROLE                    # cadastro público nunca escolhe o papel
+    elif fields['role'] is None:
+        fields['role'] = DEFAULT_ROLE
+    return jsonify(user_service.create_user(**fields).to_dict()), 201
 
 
 def update_user(user_id):
     ensure_self_or_admin(user_id)
-    user = user_service.get_user(user_id)
+    user_service.get_user(user_id)
     changes = validators.user_update_payload(validators.json_body())
-    if PRIVILEGED_USER_FIELDS & changes.keys():
-        ensure_admin()
-    user = user_service.update_user(user, changes)
-    return jsonify(user.to_dict()), 200
+    if ADMIN_ONLY_FIELDS & changes.keys() and not g.current_user.is_admin():
+        raise ForbiddenError('Somente administradores alteram papel ou status')
+    return jsonify(user_service.update_user(user_id, changes).to_dict()), 200
 
 
 def delete_user(user_id):
-    user_service.delete_user(user_service.get_user(user_id))
-    return jsonify({"message": "Usuário deletado com sucesso"}), 200
+    user_service.delete_user(user_id)
+    return jsonify({'message': 'Usuário deletado com sucesso'}), 200
 
 
 def get_user_tasks(user_id):
     ensure_self_or_admin(user_id)
-    user = user_service.get_user(user_id)
-    return jsonify(serializers.user_task_list(user_service.get_user_tasks(user))), 200
+    now = utc_now()
+    return jsonify([serializers.user_task_item(task, now) for task in user_service.list_user_tasks(user_id)]), 200
 
 
 def login():
     email, password = validators.login_payload(validators.json_body())
-    user = user_service.authenticate(email, password)
-    return jsonify(serializers.login_response(user, auth_service.issue_token(user))), 200
+    user, token = auth_service.login(email, password)
+    return jsonify({'message': 'Login realizado com sucesso', 'user': user.to_dict(), 'token': token}), 200

@@ -1,6 +1,15 @@
 @baseUrl = http://localhost:3000
-# Mesmo valor da variável de ambiente ADMIN_TOKEN usada para subir a API
-@adminToken = troque-pelo-ADMIN_TOKEN
+# Preencha com o token retornado pelo login do admin (suba com ADMIN_PASSWORD definido)
+@adminToken = cole-o-token-aqui
+
+### Login (admin)
+POST {{baseUrl}}/api/login
+Content-Type: application/json
+
+{
+  "eml": "admin@fullcycle.com.br",
+  "pwd": "a-senha-definida-em-ADMIN_PASSWORD"
+}
 
 ### Checkout - sucesso
 POST {{baseUrl}}/api/checkout
@@ -26,10 +35,10 @@ Content-Type: application/json
   "card": "5111222233334444"
 }
 
-### Relatório financeiro administrativo (requer ADMIN_TOKEN)
+### Relatório financeiro administrativo (admin)
 GET {{baseUrl}}/api/admin/financial-report
 Authorization: Bearer {{adminToken}}
 
-### Deletar usuário (requer ADMIN_TOKEN)
+### Deletar usuário (admin)
 DELETE {{baseUrl}}/api/users/1
 Authorization: Bearer {{adminToken}}

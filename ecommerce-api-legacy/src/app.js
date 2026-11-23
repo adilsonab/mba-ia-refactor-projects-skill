@@ -1,63 +1,68 @@
 const express = require('express');
 const config = require('./config');
-const logger = require('./utils/logger');
+const { createLogger } = require('./utils/logger');
 const { createDatabase } = require('./database');
-const { createUserModel } = require('./models/userModel');
-const { createCourseModel } = require('./models/courseModel');
-const { createEnrollmentModel } = require('./models/enrollmentModel');
-const { createPaymentModel } = require('./models/paymentModel');
-const { createAuditLogModel } = require('./models/auditLogModel');
-const { createReportModel } = require('./models/reportModel');
+const { seed } = require('./database/seed');
+const { createModels } = require('./models');
 const { createPaymentGateway } = require('./services/paymentGateway');
+const { createCacheService } = require('./services/cacheService');
+const { createAuthService } = require('./services/authService');
 const { createCheckoutService } = require('./services/checkoutService');
 const { createReportService } = require('./services/reportService');
 const { createUserService } = require('./services/userService');
 const { createCheckoutController } = require('./controllers/checkoutController');
 const { createReportController } = require('./controllers/reportController');
 const { createUserController } = require('./controllers/userController');
+const { createAuthController } = require('./controllers/authController');
+const { createAuthMiddleware } = require('./middlewares/auth');
+const { createCors } = require('./middlewares/cors');
+const { createErrorHandler } = require('./middlewares/errorHandler');
 const { buildRoutes } = require('./routes');
-const { errorHandler } = require('./middlewares/errorHandler');
-const { createRequireAdmin } = require('./middlewares/auth');
 
-// Composition root: cria as dependências e as injeta camada por camada.
-function createApp(db) {
-    const userModel = createUserModel(db);
-    const courseModel = createCourseModel(db);
-    const enrollmentModel = createEnrollmentModel(db);
-    const paymentModel = createPaymentModel(db);
-    const auditLogModel = createAuditLogModel(db);
-    const reportModel = createReportModel(db);
+// Composition root: cria dependências e as injeta nas camadas.
+async function createApp(logger) {
+    const db = await createDatabase();
+    await seed(db, config, logger);
 
+    const models = createModels(db);
     const paymentGateway = createPaymentGateway({ apiKey: config.paymentGatewayKey, logger });
-    const checkoutService = createCheckoutService({
-        db, userModel, courseModel, enrollmentModel, paymentModel, auditLogModel, paymentGateway,
-    });
-    const reportService = createReportService({ reportModel });
-    const userService = createUserService({ db, userModel, enrollmentModel, paymentModel });
+    const cache = createCacheService({ logger });
+    const authService = createAuthService({ userModel: models.userModel, config });
+    const checkoutService = createCheckoutService({ db, models, paymentGateway, cache, logger, authService });
+    const reportService = createReportService({ reportModel: models.reportModel });
+    const userService = createUserService({ db, models });
 
-    const app = express();
-    app.use(express.json());
-    app.use(buildRoutes({
+    const controllers = {
         checkoutController: createCheckoutController({ checkoutService }),
         reportController: createReportController({ reportService }),
         userController: createUserController({ userService }),
-        requireAdmin: createRequireAdmin({ adminToken: config.adminToken }),
-    }));
-    app.use(errorHandler);
+        authController: createAuthController({ authService }),
+    };
+
+    const app = express();
+    app.disable('x-powered-by');
+    app.use(createCors(config.corsOrigins));
+    app.use(express.json());
+    app.use(buildRoutes({ controllers, auth: createAuthMiddleware({ authService }) }));
+    app.use(createErrorHandler(logger));
     return app;
 }
 
-async function main() {
-    const db = await createDatabase(config.databasePath);
-    const app = createApp(db);
+async function main(logger) {
+    config.warnings.forEach((message) => logger.warn(message));
+    if (!config.paymentGatewayKey) logger.warn('PAYMENT_GATEWAY_KEY não definida (gateway simulado).');
+
+    const app = await createApp(logger);
     app.listen(config.port, config.host, () => {
-        logger.info(`Frankenstein LMS rodando em http://${config.host}:${config.port}...`);
+        const cors = config.corsOrigins.length ? config.corsOrigins.join(', ') : 'fechado';
+        logger.info(`LMS API rodando em http://${config.host}:${config.port} (CORS: ${cors})`);
     });
 }
 
 if (require.main === module) {
-    main().catch((err) => {
-        logger.error('Falha ao iniciar a aplicação:', err);
+    const logger = createLogger(config.logLevel);
+    main(logger).catch((err) => {
+        logger.error('Falha ao iniciar a aplicação:', err && err.stack ? err.stack : err);
         process.exit(1);
     });
 }

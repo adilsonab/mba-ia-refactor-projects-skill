@@ -565,14 +565,14 @@ class PedidoService:
 Resolve AP-05 e **AP-11 por completo**. AP-11 nunca vai para "Pending": a exigência de token nas rotas protegidas é mudança de contrato de segurança permitida (`mvc-guidelines.md` §4) e deve ser listada no resumo.
 
 **Passos:**
-1. **Remover** rotas de execução arbitrária (SQL/código vindo do cliente).
+1. **Remover** rotas de execução arbitrária (SQL/código vindo do cliente) — a rota deixa de existir (404). Não as "proteja" com papel admin, lista de comandos permitidos ou `PRAGMA query_only`.
 2. **Classificar** cada endpoint do inventário pela matriz de acesso (`mvc-guidelines.md` §4): público / autenticado (dono ou admin) / admin.
 3. **Emitir token assinado no login:** HMAC com o `SECRET_KEY` da config (T02), com expiração; payload só com o id do usuário. Mantenha a chave da resposta original (`token`) ou adicione `token` dentro do envelope existente. Python/Flask: `itsdangerous` (já é dependência do Flask — fixe-a no manifesto); Node: `crypto.createHmac` (sem dependência nova). Em outras stacks, a biblioteca JWT/assinatura idiomática.
 4. **Middleware de auth** (`middlewares/auth.*`): lê `Authorization: Bearer <token>`, valida assinatura e expiração, **recarrega o usuário do banco** (papel e `active` vêm do banco, nunca do token nem do corpo) e o disponibiliza na requisição (`g.current_user` / `req.user`). Erros: sem token/inválido/expirado/usuário inexistente ou inativo → 401; sem papel → 403 (via exceções do error handler central, T08).
 5. **Aplicar a política na camada de rotas** (decorators `login_required`/`admin_required` ou middlewares por rota), deixando a matriz visível no arquivo de rotas. Verificação de **dono** (`usuario_id` da rota/corpo == usuário do token, salvo admin) fica no controller, com helper único `ensure_self_or_admin`.
 6. **Papel definido pelo servidor:** o cadastro público grava o papel padrão e ignora `role`/`tipo`/`is_admin` do corpo; se quem chama é admin autenticado, o papel informado é aceito (validado contra a lista de papéis). No update, alterar `role`/`active` exige admin (403 para os demais).
-7. **Projetos sem login/papéis:** proteger as rotas admin com credencial do servidor (`ADMIN_TOKEN` do ambiente, enviada como Bearer, comparada com `hmac.compare_digest`/`crypto.timingSafeEqual`); sem a variável, rotas admin desabilitadas (401). Nunca gerar e logar um token.
-8. **Seed e documentação:** o seed deve ter ao menos um admin (senha com hash, T03); documente no README como obter e enviar o token e acrescente `SECRET_KEY`/`TOKEN_MAX_AGE`/`ADMIN_TOKEN` ao `.env.example`.
+7. **Projetos sem login/papéis:** se o problema é **só** proteger rotas administrativas, proteja-as com credencial do servidor (`ADMIN_TOKEN` do ambiente, enviada como Bearer, comparada com `hmac.compare_digest`/`crypto.timingSafeEqual`); sem a variável, rotas admin desabilitadas (401). Nunca gerar e logar um token. Se, além disso, um fluxo público usa um dado do cliente como identidade (ex.: checkout que aceita qualquer e-mail já cadastrado como "quem sou eu"), `ADMIN_TOKEN` não resolve: crie login com papéis (novo endpoint aditivo `POST .../login`, coluna `role` com padrão definido pelo servidor) e exija a senha ou o token do dono nesse fluxo. A senha do admin do seed vem do ambiente (`ADMIN_PASSWORD`) e nunca é logada.
+8. **Seed e documentação:** o seed deve ter ao menos um admin (senha com hash, T03). **Preserve as credenciais de desenvolvimento do seed original** (ex.: `admin@loja.com` / `admin123`), agora gravadas com hash: elas fazem parte do contrato de desenvolvimento e dos testes; se quiser, permita sobrescrever por variável de ambiente (`ADMIN_PASSWORD`). **Nunca gere uma senha/token e escreva no log** (isso é AP-04); documente no README como obter e enviar o token e acrescente `SECRET_KEY`/`TOKEN_MAX_AGE`/`ADMIN_TOKEN` ao `.env.example`.
 9. **Validar** (`mvc-guidelines.md` §6): mesmas respostas do baseline com token; 401 sem token/adulterado; 403 para usuário comum em rota admin e em recurso de outro usuário; cadastro com `role: admin` sem token → papel padrão.
 
 ```python
@@ -724,6 +724,22 @@ function requireAdminToken(config) {
 **Passos:** `create_app(config)` cria o app, carrega config, inicializa banco/extensões, instancia dependências (models, services, notifier), registra rotas e error handlers; o entry point original continua funcionando (`python app.py`, `npm start`) e expõe `app` no módulo se scripts externos o importam (ex.: `seed.py`).
 
 ```python
+# ANTES — app.py (config fixa, rotas inline, SQL e bootstrap no import do módulo)
+app = Flask(__name__)
+app.config["SECRET_KEY"] = "minha-chave-super-secreta-123"
+CORS(app)
+db.create_all()                                    # roda no import
+
+@app.route("/admin/reset-db", methods=["POST"])
+def reset_database():
+    get_db().execute("DELETE FROM produtos")       # SQL na rota
+    ...
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
+```
+
+```python
 # DEPOIS — app.py
 from flask import Flask
 from config.settings import Config
@@ -747,6 +763,17 @@ app = create_app()            # mantém `from app import app` funcionando
 
 if __name__ == "__main__":
     app.run(host=app.config["HOST"], port=app.config["PORT"], debug=app.config["DEBUG"])  # 127.0.0.1 / debug off por padrão
+```
+
+```js
+// ANTES — src/app.js (a God Class cria banco, schema, seed e todas as rotas)
+const { config } = require('./utils');   // config com segredos fixos, porta 3000
+const app = express();
+app.use(express.json());
+const manager = new AppManager();        // new sqlite3.Database(':memory:') no construtor
+manager.initDb();                        // schema + seed
+manager.setupRoutes(app);                // rotas com SQL e regras inline
+app.listen(config.port, () => console.log(`Frankenstein LMS rodando na porta ${config.port}...`));
 ```
 
 ```js

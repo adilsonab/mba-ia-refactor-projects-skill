@@ -1,27 +1,33 @@
-const crypto = require('crypto');
-const { UnauthorizedError } = require('./errorHandler');
+const { unauthorized, forbidden } = require('../utils/errors');
+const { ROLES } = require('../config/constants');
 
-// Extrai o token de "Authorization: Bearer <token>".
-function bearerToken(req) {
+const bearerToken = (req) => {
     const [scheme, token] = (req.get('authorization') || '').split(' ');
-    return scheme && scheme.toLowerCase() === 'bearer' && token ? token.trim() : '';
+    return scheme && scheme.toLowerCase() === 'bearer' && token ? token.trim() : null;
+};
+
+function createAuthMiddleware({ authService }) {
+    // Exige token válido; usuário (e papel) recarregado do banco.
+    async function authenticate(req, res, next) {
+        const token = bearerToken(req);
+        const user = token ? await authService.userFromToken(token) : null;
+        if (!user) throw unauthorized('Autenticação necessária');
+        req.user = user;
+        next();
+    }
+
+    // Token opcional (checkout público): se presente, precisa ser válido.
+    async function optionalAuthenticate(req, res, next) {
+        if (!req.get('authorization')) return next();
+        return authenticate(req, res, next);
+    }
+
+    function requireAdmin(req, res, next) {
+        if (!req.user || req.user.role !== ROLES.ADMIN) throw forbidden('Acesso restrito a administradores');
+        next();
+    }
+
+    return { authenticate, optionalAuthenticate, requireAdmin };
 }
 
-function safeEqual(given, expected) {
-    const a = Buffer.from(given);
-    const b = Buffer.from(expected);
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-
-// O projeto não tem login nem papéis: a credencial de administrador é definida no servidor
-// (ADMIN_TOKEN). Sem a variável, as rotas administrativas ficam desabilitadas (401).
-function createRequireAdmin({ adminToken }) {
-    return function requireAdmin(req, res, next) {
-        if (!adminToken || !safeEqual(bearerToken(req), adminToken)) {
-            return next(new UnauthorizedError());
-        }
-        return next();
-    };
-}
-
-module.exports = { createRequireAdmin };
+module.exports = { createAuthMiddleware };

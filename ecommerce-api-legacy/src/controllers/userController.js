@@ -1,14 +1,11 @@
-const { parsePositiveId } = require('./validators');
-
-// O texto original ("...as matrículas e pagamentos ficaram sujos no banco") descrevia o defeito
-// corrigido (AP-20): agora a exclusão remove matrículas e pagamentos na mesma transação.
-const DELETE_MESSAGE = 'Usuário deletado, junto com suas matrículas e pagamentos.';
+const { parsePositiveInt } = require('../utils/validators');
 
 function createUserController({ userService }) {
     return {
         async deleteUser(req, res) {
-            await userService.deleteUser(parsePositiveId(req.params.id));
-            res.send(DELETE_MESSAGE);
+            const id = parsePositiveInt(req.params.id);
+            await userService.deleteUser(id);
+            res.send('Usuário deletado');
         },
     };
 }
